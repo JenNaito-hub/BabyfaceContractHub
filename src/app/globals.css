@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --lime: #d7f205;
+  --dark: #1a1a1a;
+  --paper: #efeeea;
+  --warning: #e8553a;
+}
+
+body {
+  background-color: var(--paper);
+  color: var(--dark);
+  font-family: var(--font-body), sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: var(--font-display), sans-serif;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-lime text-dark hover:brightness-95;
+  }
+  .btn-dark {
+    @apply btn bg-dark text-paper hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply btn border border-dark/20 bg-transparent text-dark hover:bg-dark/5;
+  }
+  .btn-danger {
+    @apply btn bg-warning text-white hover:brightness-95;
+  }
+  .card {
+    @apply rounded-2xl border border-dark/10 bg-white p-5 shadow-sm;
+  }
+  .input {
+    @apply w-full rounded-lg border border-dark/20 bg-white px-3 py-2 text-sm outline-none focus:border-dark/60;
+  }
+  .label {
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-dark/60;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .th {
+    @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-dark/50;
+  }
+  .td {
+    @apply px-3 py-2 text-sm align-middle;
+  }
+}
