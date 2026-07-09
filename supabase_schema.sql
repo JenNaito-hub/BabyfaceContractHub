@@ -3,6 +3,8 @@
 -- Chạy trong Supabase SQL Editor (project nmgqpirrvzzysgxybccd)
 -- Nguyên tắc: SĐT tách bảng riêng (chỉ admin/manager đọc);
 --            talent mới = pending, phải duyệt tay mới approved.
+-- Idempotent: chạy lại nhiều lần không lỗi. An toàn khi project
+-- đã có sẵn bảng profiles (dùng chung với Prompt Studio).
 -- ============================================================
 
 -- ---------- 0. Enum role ----------
@@ -17,6 +19,11 @@ create table if not exists public.profiles (
   role user_role not null default 'staff',
   created_at timestamptz default now()
 );
+-- Nếu project đã có sẵn bảng profiles (vd dùng chung với Prompt Studio),
+-- bổ sung cột còn thiếu để tránh lỗi "column role does not exist".
+alter table public.profiles add column if not exists full_name text;
+alter table public.profiles add column if not exists role user_role not null default 'staff';
+alter table public.profiles add column if not exists created_at timestamptz default now();
 
 -- helper: role của user hiện tại
 create or replace function public.current_role()
@@ -94,45 +101,61 @@ alter table public.jobs            enable row level security;
 alter table public.castings        enable row level security;
 
 -- profiles: user đọc chính mình; manager đọc tất cả
+drop policy if exists profiles_self_read on public.profiles;
 create policy profiles_self_read on public.profiles
   for select using (id = auth.uid() or public.is_manager());
+drop policy if exists profiles_self_update on public.profiles;
 create policy profiles_self_update on public.profiles
   for update using (id = auth.uid());
 
 -- talents: mọi user đã đăng nhập đọc & thêm; sửa thì tự tạo hoặc manager;
 --          đổi status (duyệt) chỉ manager (enforce ở app + policy update)
+drop policy if exists talents_read on public.talents;
 create policy talents_read on public.talents
   for select using (auth.role() = 'authenticated');
+drop policy if exists talents_insert on public.talents;
 create policy talents_insert on public.talents
   for insert with check (auth.role() = 'authenticated');
+drop policy if exists talents_update on public.talents;
 create policy talents_update on public.talents
   for update using (created_by = auth.uid() or public.is_manager());
+drop policy if exists talents_delete on public.talents;
 create policy talents_delete on public.talents
   for delete using (public.is_manager());
 
 -- talent_contacts: CHỈ manager/admin đọc & ghi (SĐT nhạy cảm)
+drop policy if exists contacts_manager_read on public.talent_contacts;
 create policy contacts_manager_read on public.talent_contacts
   for select using (public.is_manager());
+drop policy if exists contacts_manager_write on public.talent_contacts;
 create policy contacts_manager_write on public.talent_contacts
   for all using (public.is_manager()) with check (public.is_manager());
 
 -- jobs: authenticated đọc/ghi; xoá manager
+drop policy if exists jobs_read on public.jobs;
 create policy jobs_read on public.jobs
   for select using (auth.role() = 'authenticated');
+drop policy if exists jobs_write on public.jobs;
 create policy jobs_write on public.jobs
   for insert with check (auth.role() = 'authenticated');
+drop policy if exists jobs_update on public.jobs;
 create policy jobs_update on public.jobs
   for update using (auth.role() = 'authenticated');
+drop policy if exists jobs_delete on public.jobs;
 create policy jobs_delete on public.jobs
   for delete using (public.is_manager());
 
 -- castings: authenticated đọc/ghi/sửa; xoá manager
+drop policy if exists castings_read on public.castings;
 create policy castings_read on public.castings
   for select using (auth.role() = 'authenticated');
+drop policy if exists castings_write on public.castings;
 create policy castings_write on public.castings
   for insert with check (auth.role() = 'authenticated');
+drop policy if exists castings_update on public.castings;
 create policy castings_update on public.castings
   for update using (auth.role() = 'authenticated');
+drop policy if exists castings_delete on public.castings;
 create policy castings_delete on public.castings
   for delete using (public.is_manager());
 
@@ -156,4 +179,7 @@ create trigger on_auth_user_created
 -- ============================================================
 -- Sau khi chạy: vào bảng profiles nâng account của Jen lên 'admin':
 --   update public.profiles set role='admin' where id = '<uuid cua Jen>';
+-- Hoặc theo email:
+--   update public.profiles set role='admin'
+--   where id = (select id from auth.users where email = 'jen.aescentic@gmail.com');
 -- ============================================================
