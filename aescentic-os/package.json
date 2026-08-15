@@ -1,0 +1,22 @@
+{
+  "name": "aescentic-os",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*", "modules/*"],
+  "scripts": {
+    "db:migrate": "tsx packages/database/src/migrate.ts",
+    "db:seed": "tsx packages/database/src/seed.ts",
+    "test": "tsx --test \"packages/**/*.test.ts\" \"modules/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.36.4",
+    "postgres": "^3.4.5",
+    "zod": "^3.23.8"
+  }
+}

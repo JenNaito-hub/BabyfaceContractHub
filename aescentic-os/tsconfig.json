@@ -1,0 +1,56 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@aescentic/database": [
+        "packages/database/src/index.ts"
+      ],
+      "@aescentic/database/*": [
+        "packages/database/src/*"
+      ],
+      "@aescentic/permissions": [
+        "packages/permissions/src/index.ts"
+      ],
+      "@aescentic/auth": [
+        "packages/auth/src/index.ts"
+      ],
+      "@aescentic/config": [
+        "packages/config/src/index.ts"
+      ],
+      "@aescentic/events": [
+        "packages/events/src/index.ts"
+      ],
+      "@aescentic/integrations": [
+        "packages/integrations/src/index.ts"
+      ],
+      "@aescentic/shared": [
+        "packages/shared/src/index.ts"
+      ]
+    },
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "packages/**/*.ts",
+    "modules/**/*.ts",
+    "apps/worker/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/dist"
+  ]
+}
