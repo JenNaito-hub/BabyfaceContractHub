@@ -45,7 +45,20 @@ JSON schema nên kết quả luôn đúng cấu trúc. **Chưa có `ANTHROPIC_AP
 tự chuyển sang bản sinh offline bằng template, cho ra khung shotlist dùng được ngay.
 
 Nút **“Dựng khung trong Editor”** biến shotlist thành project: mỗi cảnh là một clip trống mang
-sẵn chữ mô tả và đúng thời lượng. Vào Editor gắn footage vào từng clip là ra bản dựng.
+sẵn chữ mô tả, đúng thời lượng, **và kèm luôn prompt tiếng Anh của cảnh đó**.
+
+### 5. Sinh ảnh/video bằng AI (fal.ai)
+Trong Editor, chọn một clip → **“✨ Sinh media bằng AI”**. Prompt tự điền từ shotlist, tỉ lệ
+khung hình lấy theo project. Sinh xong file tự vào Thư viện và tự gắn vào clip đang chọn.
+
+Cần `FAL_KEY`. Thiếu key thì nút báo rõ là chưa cấu hình, các phần khác vẫn chạy bình thường.
+
+**Ảnh rẻ hơn video rất nhiều.** Cách tiết kiệm: sinh ảnh cho từng cảnh rồi bật *Zoom chậm* +
+chuyển cảnh — vẫn ra video có chuyển động với chi phí gần như không đáng kể. Chỉ sinh video
+thật cho vài cảnh cần chuyển động phức tạp.
+
+Model đổi được bằng biến môi trường (`FAL_IMAGE_MODEL`, `FAL_VIDEO_MODEL`,
+`FAL_IMAGE_TO_VIDEO_MODEL`) — fal ra model mới liên tục, đổi không cần sửa code.
 
 ### 4. Quản lý sản xuất (`/video/production`)
 Dự án quay: trạng thái (lên kế hoạch → quay → dựng → chờ duyệt → xong), khách hàng, ngân sách,
@@ -94,6 +107,7 @@ như bình thường là có luôn `/video`.
    | Biến | Bắt buộc | Môi trường |
    | --- | --- | --- |
    | `ANTHROPIC_API_KEY` | Không — thiếu thì Kịch bản AI chạy bản offline | Production + Preview |
+   | `FAL_KEY` | Không — thiếu thì tắt phần sinh ảnh/video AI | Production + Preview |
 
    Hai biến `NEXT_PUBLIC_SUPABASE_*` vẫn giữ nguyên cho khu `/talent`.
    **Đừng** đặt tên biến Anthropic có prefix `NEXT_PUBLIC_` — làm vậy là lộ key ra client.
@@ -152,3 +166,8 @@ Engine không dùng thư viện ngoài — canvas 2D để dựng hình, Web Aud
   không dùng để canh khớp hình chính xác từng frame.
 - Route `/api/video/script` đã kiểm thử ở nhánh không có key (rơi về offline); nhánh gọi Claude
   thật cần cắm `ANTHROPIC_API_KEY` để chạy thử.
+- **Phần sinh media qua fal.ai chưa chạy thử với API thật** — môi trường build chặn truy cập
+  `fal.ai`. Đã kiểm thử: chặn SSRF, thiếu key, thiếu prompt, lỗi mạng, và giao diện không kẹt
+  khi lỗi. Model ID mặc định lấy theo tài liệu công khai; nếu fal đổi tên model thì route trả
+  lỗi 404 kèm hướng dẫn — sửa bằng biến môi trường, không cần đụng code.
+- Sinh ảnh/video **tốn tiền theo lượt** và tiền trả cho fal.ai, không phải cho app này.

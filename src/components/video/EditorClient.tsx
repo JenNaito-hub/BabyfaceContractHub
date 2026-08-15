@@ -15,6 +15,7 @@ import {
   pickMimeType,
   totalDuration,
 } from "@/lib/video/render";
+import { aspectOf, generateAsset, type GenerateKind } from "@/lib/video/generate";
 import { defaultCaption } from "@/lib/video/templates";
 import { PRESETS, type Asset, type Caption, type Clip, type Project } from "@/lib/video/types";
 import { AssetGrid, UploadButton } from "./MediaPicker";
@@ -601,7 +602,13 @@ export default function EditorClient({ projectId }: { projectId: string }) {
               clip={selected}
               asset={selected.assetId ? assetMap.get(selected.assetId) : undefined}
               assets={assets}
+              aspect={aspectOf(project.width, project.height)}
               onChange={(fn) => patchClip(selected.id, fn)}
+              onGenerated={async (asset) => {
+                await reload();
+                patchClip(selected.id, (c) => ({ ...c, assetId: asset.id, trimStart: 0 }));
+                toast.show("Đã sinh xong và gắn vào clip");
+              }}
             />
           ) : (
             <div className="card">
@@ -647,12 +654,16 @@ function ClipInspector({
   clip,
   asset,
   assets,
+  aspect,
   onChange,
+  onGenerated,
 }: {
   clip: Clip;
   asset?: Asset;
   assets: Asset[];
+  aspect: string;
   onChange: (fn: (c: Clip) => Clip) => void;
+  onGenerated: (asset: Asset) => void | Promise<void>;
 }) {
   const isVideo = asset?.kind === "video";
   const maxTrim = isVideo ? Math.max(0, (asset?.duration ?? 0) - 0.5) : 0;
@@ -789,6 +800,12 @@ function ClipInspector({
             )}
           </>
         )}
+
+        <AiGenerate
+          clip={clip}
+          aspect={aspect}
+          onGenerated={onGenerated}
+        />
 
         <div className="border-t border-dark/10 pt-3">
           {!clip.caption ? (
@@ -928,6 +945,143 @@ function ClipInspector({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------- Sinh bằng AI
+
+function AiGenerate({
+  clip,
+  aspect,
+  onGenerated,
+}: {
+  clip: Clip;
+  aspect: string;
+  onGenerated: (asset: Asset) => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<GenerateKind>("image");
+  // Prompt tiếng Anh từ shotlist là mặc định tốt nhất; không có thì lấy chữ trên clip.
+  const [prompt, setPrompt] = useState(
+    clip.aiPrompt ?? [clip.caption?.text, clip.caption?.sub].filter(Boolean).join(" — "),
+  );
+  const [stage, setStage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Đổi clip thì nạp lại prompt của clip đó.
+  useEffect(() => {
+    setPrompt(
+      clip.aiPrompt ?? [clip.caption?.text, clip.caption?.sub].filter(Boolean).join(" — "),
+    );
+    setError(null);
+  }, [clip.id, clip.aiPrompt, clip.caption?.text, clip.caption?.sub]);
+
+  const run = async () => {
+    if (!prompt.trim()) {
+      setError("Cần có prompt mô tả cảnh");
+      return;
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setError(null);
+    setStage("Bắt đầu…");
+    try {
+      const asset = await generateAsset({
+        kind,
+        prompt: prompt.trim(),
+        aspect,
+        durationSec: Math.max(5, Math.round(clip.duration)),
+        label: clip.caption?.text,
+        onStage: setStage,
+        signal: controller.signal,
+      });
+      await onGenerated(asset);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sinh media thất bại");
+    } finally {
+      setStage(null);
+      abortRef.current = null;
+    }
+  };
+
+  const busy = stage !== null;
+
+  return (
+    <div className="border-t border-dark/10 pt-3">
+      {!open ? (
+        <button type="button" className="btn-ghost w-full" onClick={() => setOpen(true)}>
+          ✨ Sinh media bằng AI
+        </button>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-sm font-bold">Sinh bằng AI</h3>
+            <button
+              type="button"
+              className="text-xs font-semibold text-dark/50"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+            >
+              Ẩn
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            {(["image", "video"] as GenerateKind[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                disabled={busy}
+                onClick={() => setKind(k)}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                  kind === k ? "bg-dark text-paper" : "bg-dark/5 text-dark/70 hover:bg-dark/10"
+                }`}
+              >
+                {k === "image" ? "Ảnh" : "Video"}
+              </button>
+            ))}
+          </div>
+
+          <Field
+            label="Prompt"
+            hint={
+              kind === "video"
+                ? "Video tốn tiền gấp nhiều lần ảnh. Thử ảnh trước cho chắc prompt rồi hãy dựng video."
+                : "Ảnh rẻ — dựng ảnh rồi bật Zoom chậm ở trên là đã ra chuyển động."
+            }
+          >
+            <textarea
+              className="input min-h-[90px] resize-y font-mono text-xs"
+              value={prompt}
+              disabled={busy}
+              onChange={(e) => setPrompt(e.target.value)}
+            />
+          </Field>
+
+          {busy ? (
+            <>
+              <div className="rounded-lg bg-dark/5 px-3 py-2 text-xs text-dark/70">{stage}</div>
+              <button
+                type="button"
+                className="btn-danger w-full"
+                onClick={() => abortRef.current?.abort()}
+              >
+                Huỷ
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn-primary w-full" onClick={() => void run()}>
+              Sinh {kind === "image" ? "ảnh" : "video"} ({aspect})
+            </button>
+          )}
+
+          {error && (
+            <p className="rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">{error}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

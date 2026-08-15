@@ -60,6 +60,8 @@ export type Clip = {
   muted: boolean;
   volume: number;
   caption?: Caption;
+  /** Prompt tiếng Anh kèm theo từ shotlist — dùng để sinh media bằng AI. */
+  aiPrompt?: string;
 };
 
 export type MusicTrack = {

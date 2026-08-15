@@ -234,6 +234,7 @@ export function projectFromScript(
     transition: i === 0 ? "none" : "fade",
     muted: true,
     volume: 1,
+    aiPrompt: shot.aiPrompt,
     caption: {
       text: shot.shot,
       sub: shot.description,
