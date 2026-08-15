@@ -45,10 +45,10 @@ export default async function TrangKho() {
       <section>
         <h2 className="mb-3 font-bold">Tồn theo địa điểm</h2>
         <div className="overflow-x-auto border border-line">
-          <table className="w-full min-w-[760px] bg-surface">
+          <table className="w-full min-w-[760px] bg-surface" style={{ minWidth: `${220 + (diaDiem.length + 1) * 96}px` }}>
             <thead>
               <tr>
-                <th className="th sticky left-0 bg-paper">SKU / Sản phẩm</th>
+                <th className="th sticky left-0 w-[220px] min-w-[220px] bg-paper">SKU / Sản phẩm</th>
                 {diaDiem.map((l) => (
                   <th key={l.id} className="th text-center">
                     {l.name}
@@ -64,7 +64,7 @@ export default async function TrangKho() {
             <tbody>
               {bang.slice(0, 80).map((r) => (
                 <tr key={r.skuId}>
-                  <td className="td sticky left-0 bg-surface">
+                  <td className="td sticky left-0 w-[220px] min-w-[220px] bg-surface">
                     <div className="font-medium">{r.productName}</div>
                     <div className="font-mono text-[11px] text-muted">
                       {r.skuCode} · ngưỡng {r.reorderPoint}
