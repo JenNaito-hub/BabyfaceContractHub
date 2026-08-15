@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
-  const redirectTo = search.get("redirect") || "/talent";
+  const redirectTo = search.get("redirect") || "/";
 
   const [mode, setMode] = useState<"password" | "magic">("password");
   const [email, setEmail] = useState("");
@@ -60,7 +60,7 @@ function LoginForm() {
         <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-lime text-2xl font-extrabold text-dark">
           B
         </div>
-        <h1 className="text-2xl font-extrabold">Babyface Talent Manager</h1>
+        <h1 className="text-2xl font-extrabold">Aescentic · Babyface</h1>
         <p className="mt-1 text-sm text-dark/60">Đăng nhập để tiếp tục</p>
       </div>
 
@@ -95,7 +95,7 @@ function LoginForm() {
               className="input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="ban@babyface.vn"
+              placeholder="ban@aescentic.vn"
             />
           </div>
 

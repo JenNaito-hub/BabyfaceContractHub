@@ -4,6 +4,9 @@ export type Profile = {
   id: string;
   full_name: string | null;
   role: UserRole;
+  email: string | null;
+  /** Cửa hàng được gán (app bán hàng) — null nếu làm ở văn phòng/nhiều nơi. */
+  store_id: string | null;
   created_at: string;
 };
 

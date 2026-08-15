@@ -30,8 +30,8 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith("/talent");
-  const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
+  const isProtected =
+    pathname === "/" || pathname.startsWith("/talent") || pathname.startsWith("/sales");
 
   // Chưa đăng nhập mà vào khu vực bảo vệ → đẩy về /login
   if (!user && isProtected) {
@@ -44,7 +44,7 @@ export async function updateSession(request: NextRequest) {
   // Đã đăng nhập mà vào /login → đẩy vào dashboard
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = "/talent";
+    url.pathname = "/";
     url.search = "";
     return NextResponse.redirect(url);
   }

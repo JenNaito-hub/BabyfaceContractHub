@@ -1,6 +1,20 @@
+# Aescentic Sales · Babyface Talent
+
+Hai app dùng chung 1 codebase, 1 database Supabase và 1 tài khoản đăng nhập.
+Next.js (App Router) + Supabase Auth/DB, deploy trên Vercel.
+
+| App | Route | Schema | Tài liệu |
+| --- | --- | --- | --- |
+| **Aescentic Sales** — bán hàng đa kênh (Shopee, TikTok, Facebook, Website, 5 cửa hàng) | `/sales` | `supabase_sales_schema.sql` | [AESCENTIC_SALES.md](AESCENTIC_SALES.md) |
+| **Babyface Talent** — talent & casting | `/talent` | `supabase_schema.sql` | phần dưới |
+
+Đăng nhập xong vào `/` để chọn app.
+
+---
+
 # Babyface Talent Manager
 
-Web app nhiều nhân viên quản lý **talent** và **casting** cho Babyface. Next.js (App Router) + Supabase Auth/DB, deploy trên Vercel.
+Web app nhiều nhân viên quản lý **talent** và **casting** cho Babyface.
 
 Xây theo `TALENT_MANAGER_BUILD_SPEC.md`. Khu vực chính nằm ở route group **`/talent`**.
 

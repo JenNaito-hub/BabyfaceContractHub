@@ -15,8 +15,8 @@ const body = Be_Vietnam_Pro({
 });
 
 export const metadata: Metadata = {
-  title: "Babyface Talent Manager",
-  description: "Quản lý talent & casting — Babyface",
+  title: "Aescentic Sales · Babyface Talent",
+  description: "Quản lý bán hàng đa kênh Aescentic và talent/casting Babyface",
 };
 
 export default function RootLayout({
