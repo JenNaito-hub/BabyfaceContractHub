@@ -29,7 +29,19 @@
 - Test phân quyền viết theo hướng "cửa hàng A không thấy dữ liệu cửa hàng B",
   không phải "gọi API có 200 không".
 
-### Chưa làm trong Phase 0
-- `apps/web` — vỏ Next.js, đăng nhập, màn hình admin.
-- `apps/worker` — tiến trình chạy BullMQ.
-- Xem `docs/architecture/phase-0-status.md` để biết chính xác còn gì.
+### Đã thêm — đóng Phase 0
+- `apps/web` — Next.js + Tailwind: đăng nhập, tổng quan quyền, cửa hàng (lọc theo
+  phạm vi), quản trị vai trò và người dùng, `/api/health`.
+- `withAuth()` bọc route handler; test tự quét, route nào thiếu là CI đỏ.
+- Đăng nhập dev có cookie ký HMAC, khoá hai lớp, app chết nếu bật trên production.
+- Test kỷ luật kiến trúc: `packages/*` không được import `next`/`react`/`modules`,
+  secret không được prefix `NEXT_PUBLIC_`.
+- 40 test tự động + 21 kiểm thử đầu-cuối trên trình duyệt với 4 vai trò.
+
+### Bảo mật
+- Nâng Next.js 15.1.6 → 15.1.12 cho cả hai app (CVE-2025-66478).
+
+### Chưa làm
+- `apps/worker` — cần `REDIS_URL`.
+- `SupabaseSessionProvider` — cần credential Supabase.
+- Xem `docs/architecture/phase-0-status.md`.
