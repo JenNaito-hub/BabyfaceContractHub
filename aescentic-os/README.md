@@ -23,7 +23,7 @@ npx tsc --noEmit
 export AUTH_SECRET="chuoi-dai-hon-32-ky-tu"
 export ALLOW_DEV_LOGIN=true
 npm --workspace @aescentic/web run dev        # http://localhost:3100
-node apps/web/e2e.mjs                         # 73/73 kiểm thử trình duyệt
+npm run e2e                                   # 73/73, dọn sạch dữ liệu test sau khi chạy
 ```
 
 Không có `DATABASE_URL` thì các test tích hợp bị bỏ qua kèm cảnh báo — chúng chạy

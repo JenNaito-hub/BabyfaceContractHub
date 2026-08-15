@@ -260,7 +260,12 @@ export default function PosClient({
         <div className="card space-y-3">
           <div>
             <label className="label">Tên khách</label>
-            <input className="input" value={tenKhach} onChange={(e) => setTenKhach(e.target.value)} />
+            <input
+              name="tenKhach"
+              className="input"
+              value={tenKhach}
+              onChange={(e) => setTenKhach(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Số điện thoại</label>

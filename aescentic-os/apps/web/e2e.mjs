@@ -157,6 +157,9 @@ console.log("\n=== 3. Bán hàng thật ở POS ===");
     const gio = await page.locator("main").textContent();
     kiemDung("sản phẩm vào giỏ", /Tạm tính/i.test(gio), gio.slice(0, 120));
 
+    // Đặt tên khách nhận biết được để dọn sạch sau khi test xong.
+    await page.locator('input[name="tenKhach"]').fill(MA_TEST);
+
     const chot = page.locator("button", { hasText: /^Thanh toán$/ }).first();
     if ((await chot.count()) > 0) {
       await chot.click();

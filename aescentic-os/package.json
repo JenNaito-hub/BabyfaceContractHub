@@ -2,12 +2,17 @@
   "name": "aescentic-os",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["apps/*", "packages/*", "modules/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "modules/*"
+  ],
   "scripts": {
     "db:migrate": "tsx packages/database/src/migrate.ts",
     "db:seed": "tsx packages/database/src/seed.ts",
     "test": "tsx --test \"packages/**/*.test.ts\" \"modules/**/*.test.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "node apps/web/e2e.mjs && node apps/web/e2e-don-dep.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.17.6",

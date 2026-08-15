@@ -48,7 +48,12 @@ Ghi lại vì đây là loại lỗi im lặng làm sai tiền, khó phát hiệ
 4. **Danh sách khách hàng không áp phạm vi.** Nhân viên một cửa hàng đọc được
    toàn bộ danh sách khách của công ty. Đã lọc theo nơi khách từng mua.
 
-5. **Luật "ai quản kho hàng bán" nằm ở hai nơi.** Câu `UPDATE` trong `0003` chạy
+5. **Kết nối database rò ở chế độ dev.** Singleton pool nằm trong phạm vi
+   module, mà Next.js nạp lại module mỗi lần sửa file — mỗi lần nạp lại mở thêm
+   một pool 10 kết nối, pool cũ không ai đóng. Sửa file mươi lần là PostgreSQL
+   báo "too many clients" và cả app chết. Đã chuyển singleton sang `globalThis`.
+
+6. **Luật "ai quản kho hàng bán" nằm ở hai nơi.** Câu `UPDATE` trong `0003` chạy
    trước khi seed tạo địa điểm nên không chạm dòng nào. Đã đưa thành hàm
    `os.kho_ban_do_ai_quan()` để migration, seed và test hỏi cùng một chỗ.
 
@@ -110,7 +115,7 @@ npx tsc --noEmit                            # không lỗi
 export AUTH_SECRET="chuoi-dai-hon-32-ky-tu"
 export ALLOW_DEV_LOGIN=true
 npm --workspace @aescentic/web run dev      # http://localhost:3100
-node apps/web/e2e.mjs                       # 73/73
+npm run e2e                                 # 73/73 rồi dọn dữ liệu test
 ```
 
 Đăng nhập nhanh theo tài khoản mẫu **chỉ chạy ở chế độ dev**: `NODE_ENV=production`
