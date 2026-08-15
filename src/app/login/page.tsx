@@ -129,6 +129,15 @@ function LoginForm() {
       <p className="mt-6 text-center text-xs text-dark/40">
         Tài khoản do quản trị viên tạo trong Supabase Auth.
       </p>
+
+      {/* Video Studio không cần đăng nhập — nếu không có lối vào từ đây thì
+          người dùng không có cách nào tìm ra nó. */}
+      <div className="mt-6 border-t border-dark/10 pt-5 text-center">
+        <p className="text-sm text-dark/55">Cần dựng video, không cần đăng nhập?</p>
+        <a href="/video" className="btn-ghost mt-2">
+          Mở Video Studio →
+        </a>
+      </div>
     </div>
   );
 }

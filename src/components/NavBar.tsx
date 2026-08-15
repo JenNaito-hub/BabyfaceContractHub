@@ -57,6 +57,13 @@ export default function NavBar({
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
+          {/* Video Studio là app riêng ở /video — đây là lối đi qua đó. */}
+          <Link
+            href="/video"
+            className="hidden rounded-lg px-3 py-1.5 text-sm font-semibold text-dark/70 transition hover:bg-dark/5 sm:block"
+          >
+            Video Studio ↗
+          </Link>
           <div className="hidden text-right sm:block">
             <div className="text-sm font-semibold leading-tight">
               {fullName || email || "User"}

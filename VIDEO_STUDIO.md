@@ -96,6 +96,17 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 Không prefix `NEXT_PUBLIC_` — key chỉ dùng ở server route, không lộ ra client.
 
+## Vào app bằng cách nào
+
+| Từ đâu | Đường đi |
+| --- | --- |
+| Domain gốc `/` | Trang chọn app → bấm **Video Studio** |
+| Trang đăng nhập `/login` | Link **“Mở Video Studio”** ở cuối trang |
+| Đang dùng Talent Manager | Nút **“Video Studio ↗”** trên thanh nav |
+| Trực tiếp | `/video` |
+
+Video Studio **không cần đăng nhập**. Talent Manager thì cần.
+
 ## Deploy lên Vercel
 
 Video Studio đi chung repo với Talent Manager nên **không cần project Vercel riêng** — deploy
