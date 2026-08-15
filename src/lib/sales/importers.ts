@@ -64,8 +64,13 @@ export type ParsedSheet = { headers: string[]; rows: Record<string, string>[] };
 
 /** Đọc .xlsx/.xls/.csv thành mảng object, giữ nguyên text để tự parse sau. */
 export async function docFile(file: File): Promise<ParsedSheet> {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array", cellDates: true, raw: false });
+  const laCsv = /\.(csv|txt)$/i.test(file.name) || (file.type ?? "").includes("csv");
+
+  // CSV phải đọc bằng UTF-8. Để SheetJS tự đoán bảng mã thì tiêu đề tiếng Việt
+  // biến thành "SKU phÃ¢n loáº¡i hÃ ng" và phần tự đoán cột hỏng hoàn toàn.
+  const wb = laCsv
+    ? XLSX.read((await file.text()).replace(/^﻿/, ""), { type: "string", raw: false })
+    : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   if (!sheet) return { headers: [], rows: [] };
 

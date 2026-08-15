@@ -149,9 +149,19 @@ function PhieuGiao({
           <span>Tổng cộng</span>
           <span>{formatVND(order.tong_tien)}</span>
         </div>
+        {/* Ô shipper nhìn vào: chỉ hiện số tiền khi thật sự phải thu */}
         <div className="flex justify-between bg-dark px-2 py-1 text-sm font-extrabold text-white">
-          <span>{thuHo > 0 ? "THU HỘ (COD)" : THANH_TOAN_LABEL[order.thanh_toan]}</span>
-          <span>{formatVND(thuHo)}</span>
+          {thuHo > 0 ? (
+            <>
+              <span>THU HỘ (COD)</span>
+              <span>{formatVND(thuHo)}</span>
+            </>
+          ) : (
+            <>
+              <span>{THANH_TOAN_LABEL[order.thanh_toan]}</span>
+              <span>KHÔNG THU TIỀN</span>
+            </>
+          )}
         </div>
       </div>
 

@@ -229,7 +229,10 @@ export default function ProductsClient({
                     </td>
                     <td className="td">
                       {v.ten_bien_the}
-                      {v.dung_tich_ml ? ` · ${v.dung_tich_ml}ml` : ""}
+                      {/* Nhiều shop đặt tên biến thể kèm sẵn dung tích — đừng lặp lại */}
+                      {v.dung_tich_ml && !(v.ten_bien_the ?? "").includes(`${v.dung_tich_ml}ml`)
+                        ? ` · ${v.dung_tich_ml}ml`
+                        : ""}
                     </td>
                     <td className="td text-right">{formatVND(v.gia_ban)}</td>
                     <td className="td text-right text-dark/60">{formatVND(v.gia_si)}</td>

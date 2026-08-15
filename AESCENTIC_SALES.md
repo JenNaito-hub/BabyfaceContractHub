@@ -198,6 +198,21 @@ x-webhook-secret: <ORDER_WEBHOOK_SECRET>
 Gọi lại cùng `ma_don_san` sẽ trả về đơn cũ (`"trung": true`) chứ không tạo đơn mới,
 nên website retry thoải mái. SKU chưa có trong danh mục thì trả lỗi 400 kèm tên SKU.
 
+## Dữ liệu mẫu để xem thử
+
+Muốn xem app có gì trước khi nhập liệu thật, chạy `supabase_seed_demo.sql` trong SQL
+Editor (sau `supabase_sales_schema.sql`). Nó tạo 8 dòng nước hoa (15 SKU), tồn kho cho
+cả 6 địa điểm, ~140 đơn rải 45 ngày qua trên đủ 5 kênh, khách hàng có lịch sử mua lặp
+lại, phiếu nhập và một phiếu chuyển kho đang trên đường.
+
+Xoá sạch khi bắt đầu bán thật:
+
+```sql
+select public.xoa_du_lieu_mau();
+```
+
+> Đừng chạy file seed trên project đang bán hàng thật.
+
 ## Kiểm thử
 
 ```bash
@@ -208,6 +223,11 @@ npm run build # kiểm tra toàn bộ kiểu dữ liệu + build
 Phần logic kho và phân quyền được kiểm bằng SQL trực tiếp trên Postgres (nhập kho →
 bán → huỷ → chuyển kho → kiểm kho, chặn bán quá tồn, chặn staff đọc giá vốn, chặn tự
 nâng quyền).
+
+Ngoài ra `scripts/demo/` dựng được một Supabase giả lập chạy cục bộ (Postgres thật +
+PostgREST thật) để chạy nguyên app mà không cần tài khoản Supabase, kèm bộ kiểm thử
+đầu-cuối 5 luồng nghiệp vụ: bán tại quầy, phân quyền, import file sàn, đối soát COD,
+đổi trạng thái hàng loạt. Xem `scripts/demo/README.md`.
 
 ## Chưa có trong bản này
 
