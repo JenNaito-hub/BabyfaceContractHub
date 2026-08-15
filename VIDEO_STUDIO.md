@@ -83,6 +83,37 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 Không prefix `NEXT_PUBLIC_` — key chỉ dùng ở server route, không lộ ra client.
 
+## Deploy lên Vercel
+
+Video Studio đi chung repo với Talent Manager nên **không cần project Vercel riêng** — deploy
+như bình thường là có luôn `/video`.
+
+1. **Merge nhánh** `claude/video-app-b14ooc` vào nhánh chính.
+2. **Thêm biến môi trường** trong Vercel → Settings → Environment Variables:
+
+   | Biến | Bắt buộc | Môi trường |
+   | --- | --- | --- |
+   | `ANTHROPIC_API_KEY` | Không — thiếu thì Kịch bản AI chạy bản offline | Production + Preview |
+
+   Hai biến `NEXT_PUBLIC_SUPABASE_*` vẫn giữ nguyên cho khu `/talent`.
+   **Đừng** đặt tên biến Anthropic có prefix `NEXT_PUBLIC_` — làm vậy là lộ key ra client.
+
+3. **Deploy**, rồi mở `https://<domain>/video`.
+
+### Nghiệm thu trên domain thật
+
+Chạy nhanh 5 bước này sau khi deploy:
+
+- [ ] `/video` mở được **mà không cần đăng nhập** (khác `/talent` — vào là bị đá về `/login`).
+- [ ] `/video/media` upload được 1 ảnh và 1 clip; ảnh thumbnail hiện ra.
+- [ ] `/video/editor` tạo project, thêm clip, bấm **Xuất video** → tải về file mở xem được.
+- [ ] `/video/script` nhập brief → nếu đã cắm key thì badge hiện **Claude**, chưa cắm thì
+      hiện **Offline** kèm thông báo. Cả hai đều phải ra shotlist.
+- [ ] `/video/backup` xuất `.zip`, mở thử bằng WinRAR/Finder để chắc file không rỗng.
+
+> Xuất video dùng `MediaRecorder` nên **phải chạy trên HTTPS** (hoặc `localhost`). Domain
+> Vercel đã có sẵn HTTPS nên không cần làm gì thêm.
+
 ## Hỗ trợ trình duyệt
 
 | Tính năng | Yêu cầu |
