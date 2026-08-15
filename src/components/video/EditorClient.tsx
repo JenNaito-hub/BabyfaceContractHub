@@ -7,6 +7,7 @@ import { useAssets } from "@/lib/video/hooks";
 import {
   MediaPool,
   Player,
+  clipAt,
   clipStart,
   downloadBlob,
   exportFrame,
@@ -56,6 +57,8 @@ export default function EditorClient({ projectId }: { projectId: string }) {
   const [poolError, setPoolError] = useState<string | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [exportPct, setExportPct] = useState<number | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const poolRef = useRef<MediaPool | null>(null);
@@ -170,6 +173,57 @@ export default function EditorClient({ projectId }: { projectId: string }) {
       [clips[index], clips[to]] = [clips[to], clips[index]];
       return { ...p, clips };
     });
+  };
+
+  /** Kéo-thả: rút clip ở `from` ra rồi chèn vào vị trí `to`. */
+  const reorderClip = (from: number, to: number) => {
+    if (from === to) return;
+    patch((p) => {
+      if (from < 0 || from >= p.clips.length || to < 0 || to >= p.clips.length) return p;
+      const clips = [...p.clips];
+      const [moved] = clips.splice(from, 1);
+      clips.splice(to, 0, moved);
+      return { ...p, clips };
+    });
+  };
+
+  const duplicateClip = (index: number) => {
+    patch((p) => {
+      const source = p.clips[index];
+      if (!source) return p;
+      const clips = [...p.clips];
+      clips.splice(index + 1, 0, { ...source, id: uid("clip") });
+      return { ...p, clips };
+    });
+    toast.show("Đã nhân bản clip");
+  };
+
+  /** Cắt đôi clip đang chạy tại vị trí playhead. */
+  const splitAtPlayhead = () => {
+    if (!project) return;
+    const at = clipAt(project, time);
+    if (!at) return;
+    const clip = project.clips[at.index];
+    const MIN = 0.3;
+    if (at.local < MIN || clip.duration - at.local < MIN) {
+      toast.error("Playhead quá sát đầu/cuối clip để cắt");
+      return;
+    }
+    patch((p) => {
+      const clips = [...p.clips];
+      const left: Clip = { ...clip, duration: at.local };
+      const right: Clip = {
+        ...clip,
+        id: uid("clip"),
+        trimStart: clip.trimStart + at.local,
+        duration: clip.duration - at.local,
+        transition: "none",
+        caption: undefined, // chữ giữ ở nửa đầu, tránh lặp
+      };
+      clips.splice(at.index, 1, left, right);
+      return { ...p, clips };
+    });
+    toast.show("Đã cắt đôi clip");
   };
 
   const removeClip = (clipId: string) => {
@@ -367,13 +421,24 @@ export default function EditorClient({ projectId }: { projectId: string }) {
 
           {/* Timeline */}
           <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-display text-base font-bold">
                 Timeline ({project.clips.length} clip)
               </h2>
-              <button type="button" className="btn-dark" onClick={() => setDrawer((v) => !v)}>
-                {drawer ? "Đóng" : "+ Thêm clip"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled={project.clips.length === 0}
+                  onClick={splitAtPlayhead}
+                  title="Cắt clip tại vị trí playhead"
+                >
+                  ✂ Cắt tại playhead
+                </button>
+                <button type="button" className="btn-dark" onClick={() => setDrawer((v) => !v)}>
+                  {drawer ? "Đóng" : "+ Thêm clip"}
+                </button>
+              </div>
             </div>
 
             {drawer && (
@@ -404,80 +469,127 @@ export default function EditorClient({ projectId }: { projectId: string }) {
                 Timeline trống. Bấm “+ Thêm clip” để chọn video hoặc ảnh.
               </p>
             ) : (
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {project.clips.map((clip, i) => {
-                  const asset = assetMap.get(clip.assetId);
-                  const isSel = clip.id === selectedId;
-                  return (
-                    <div
-                      key={clip.id}
-                      className={`w-36 shrink-0 overflow-hidden rounded-xl border bg-white ${
-                        isSel ? "border-dark ring-2 ring-lime" : "border-dark/12"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        className="block w-full text-left"
-                        onClick={() => {
-                          setSelectedId(clip.id);
-                          jumpToClip(i);
+              <>
+                <p className="mb-2 text-xs text-dark/45">
+                  Kéo thẻ để đổi thứ tự. Bấm vào thẻ để chọn clip.
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {project.clips.map((clip, i) => {
+                    const asset = clip.assetId ? assetMap.get(clip.assetId) : undefined;
+                    const isSel = clip.id === selectedId;
+                    const isPlaceholder = !clip.assetId;
+                    const isDropTarget = dragOver === i && dragIndex !== null && dragIndex !== i;
+                    return (
+                      <div
+                        key={clip.id}
+                        draggable
+                        onDragStart={(e) => {
+                          setDragIndex(i);
+                          e.dataTransfer.effectAllowed = "move";
                         }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          setDragOver(i);
+                        }}
+                        onDragLeave={() => setDragOver((cur) => (cur === i ? null : cur))}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (dragIndex !== null) reorderClip(dragIndex, i);
+                          setDragIndex(null);
+                          setDragOver(null);
+                        }}
+                        onDragEnd={() => {
+                          setDragIndex(null);
+                          setDragOver(null);
+                        }}
+                        className={`w-36 shrink-0 cursor-grab overflow-hidden rounded-xl border bg-white transition active:cursor-grabbing ${
+                          isSel ? "border-dark ring-2 ring-lime" : "border-dark/12"
+                        } ${isDropTarget ? "ring-2 ring-warning" : ""} ${
+                          dragIndex === i ? "opacity-50" : ""
+                        }`}
                       >
-                        <div className="aspect-video w-full bg-dark/8">
-                          {asset?.thumb ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={asset.thumb}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="grid h-full place-items-center text-xs text-dark/40">
-                              thiếu file
-                            </div>
-                          )}
+                        <button
+                          type="button"
+                          className="block w-full text-left"
+                          onClick={() => {
+                            setSelectedId(clip.id);
+                            jumpToClip(i);
+                          }}
+                        >
+                          <div className="aspect-video w-full bg-dark/8">
+                            {asset?.thumb ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={asset.thumb}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className={`grid h-full place-items-center px-1 text-center text-[10px] leading-tight ${
+                                  isPlaceholder ? "text-dark/55" : "text-warning"
+                                }`}
+                              >
+                                {isPlaceholder ? "chưa gắn media" : "thiếu file"}
+                              </div>
+                            )}
+                          </div>
+                          <div className="px-2 py-1.5">
+                            <p className="truncate text-[11px] font-semibold">
+                              {i + 1}.{" "}
+                              {asset?.name ??
+                                // Chữ từ shotlist đã có sẵn số thứ tự — bỏ đi cho khỏi "1. 1."
+                                clip.caption?.text.replace(/^\s*\d+\s*[.)]\s*/, "") ??
+                                "—"}
+                            </p>
+                            <p className="text-[11px] text-dark/50">
+                              {clip.duration.toFixed(1)}s · {clip.transition}
+                            </p>
+                          </div>
+                        </button>
+                        <div className="flex border-t border-dark/10 text-xs">
+                          <button
+                            type="button"
+                            className="flex-1 py-1 hover:bg-dark/5 disabled:opacity-30"
+                            disabled={i === 0}
+                            onClick={() => moveClip(i, -1)}
+                            aria-label="Chuyển sang trái"
+                          >
+                            ←
+                          </button>
+                          <button
+                            type="button"
+                            className="flex-1 border-x border-dark/10 py-1 hover:bg-dark/5 disabled:opacity-30"
+                            disabled={i === project.clips.length - 1}
+                            onClick={() => moveClip(i, 1)}
+                            aria-label="Chuyển sang phải"
+                          >
+                            →
+                          </button>
+                          <button
+                            type="button"
+                            className="flex-1 border-r border-dark/10 py-1 hover:bg-dark/5"
+                            onClick={() => duplicateClip(i)}
+                            aria-label="Nhân bản clip"
+                            title="Nhân bản"
+                          >
+                            ⧉
+                          </button>
+                          <button
+                            type="button"
+                            className="flex-1 py-1 text-warning hover:bg-warning/10"
+                            onClick={() => removeClip(clip.id)}
+                            aria-label="Xoá clip"
+                          >
+                            ✕
+                          </button>
                         </div>
-                        <div className="px-2 py-1.5">
-                          <p className="truncate text-[11px] font-semibold">
-                            {i + 1}. {asset?.name ?? "?"}
-                          </p>
-                          <p className="text-[11px] text-dark/50">
-                            {clip.duration.toFixed(1)}s · {clip.transition}
-                          </p>
-                        </div>
-                      </button>
-                      <div className="flex border-t border-dark/10 text-xs">
-                        <button
-                          type="button"
-                          className="flex-1 py-1 hover:bg-dark/5 disabled:opacity-30"
-                          disabled={i === 0}
-                          onClick={() => moveClip(i, -1)}
-                          aria-label="Chuyển sang trái"
-                        >
-                          ←
-                        </button>
-                        <button
-                          type="button"
-                          className="flex-1 border-x border-dark/10 py-1 hover:bg-dark/5 disabled:opacity-30"
-                          disabled={i === project.clips.length - 1}
-                          onClick={() => moveClip(i, 1)}
-                          aria-label="Chuyển sang phải"
-                        >
-                          →
-                        </button>
-                        <button
-                          type="button"
-                          className="flex-1 py-1 text-warning hover:bg-warning/10"
-                          onClick={() => removeClip(clip.id)}
-                          aria-label="Xoá clip"
-                        >
-                          ✕
-                        </button>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -487,7 +599,8 @@ export default function EditorClient({ projectId }: { projectId: string }) {
           {selected ? (
             <ClipInspector
               clip={selected}
-              asset={assetMap.get(selected.assetId)}
+              asset={selected.assetId ? assetMap.get(selected.assetId) : undefined}
+              assets={assets}
               onChange={(fn) => patchClip(selected.id, fn)}
             />
           ) : (
@@ -533,10 +646,12 @@ export default function EditorClient({ projectId }: { projectId: string }) {
 function ClipInspector({
   clip,
   asset,
+  assets,
   onChange,
 }: {
   clip: Clip;
   asset?: Asset;
+  assets: Asset[];
   onChange: (fn: (c: Clip) => Clip) => void;
 }) {
   const isVideo = asset?.kind === "video";
@@ -544,6 +659,7 @@ function ClipInspector({
   const maxDuration = isVideo
     ? Math.max(0.5, (asset?.duration ?? 0) - clip.trimStart)
     : 30;
+  const visual = assets.filter((a) => a.kind !== "audio");
 
   const setCaption = (fn: (c: Caption) => Caption) =>
     onChange((c) => (c.caption ? { ...c, caption: fn(c.caption) } : c));
@@ -551,9 +667,46 @@ function ClipInspector({
   return (
     <div className="card">
       <h2 className="mb-1 font-display text-base font-bold">Clip đang chọn</h2>
-      <p className="mb-3 truncate text-xs text-dark/50">{asset?.name ?? "File không còn"}</p>
+      <p className="mb-3 truncate text-xs text-dark/50">
+        {asset?.name ?? (clip.assetId ? "File không còn trong thư viện" : "Chưa gắn media")}
+      </p>
+
+      {!clip.assetId && (
+        <p className="mb-3 rounded-lg bg-lime/25 px-3 py-2 text-xs text-dark/75">
+          Clip khung từ shotlist. Chọn file bên dưới để ráp footage vào.
+        </p>
+      )}
 
       <div className="space-y-3">
+        <Field label={clip.assetId ? "Đổi media" : "Gắn media"}>
+          <select
+            className="input"
+            value={clip.assetId}
+            onChange={(e) => {
+              const next = assets.find((a) => a.id === e.target.value);
+              onChange((c) => ({
+                ...c,
+                assetId: e.target.value,
+                trimStart: 0,
+                // Video ngắn hơn thời lượng clip thì co lại cho khớp.
+                duration:
+                  next?.kind === "video" && next.duration > 0
+                    ? Math.min(c.duration, next.duration)
+                    : c.duration,
+                muted: next?.kind === "video" ? c.muted : true,
+              }));
+            }}
+          >
+            <option value="">— chưa gắn —</option>
+            {visual.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+                {a.kind === "video" ? ` (${a.duration.toFixed(1)}s)` : ""}
+              </option>
+            ))}
+          </select>
+        </Field>
+
         <Slider
           label="Thời lượng"
           value={clip.duration}
@@ -888,6 +1041,20 @@ function ProjectInspector({
         </select>
         {project.music && (
           <div className="mt-3 space-y-3">
+            <Slider
+              label="Bắt đầu nhạc từ giây"
+              value={project.music.startAt ?? 0}
+              min={0}
+              max={Math.max(
+                0.1,
+                (audios.find((a) => a.id === project.music?.assetId)?.duration ?? 30) - 1,
+              )}
+              step={0.5}
+              suffix="s"
+              onChange={(v) =>
+                onChange((p) => (p.music ? { ...p, music: { ...p.music, startAt: v } } : p))
+              }
+            />
             <Slider
               label="Âm lượng nhạc"
               value={project.music.volume}

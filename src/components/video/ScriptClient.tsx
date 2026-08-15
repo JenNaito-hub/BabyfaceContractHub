@@ -1,9 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { scriptStore, uid } from "@/lib/video/db";
-import { offlineScript } from "@/lib/video/templates";
-import type { ScriptDoc, ScriptRequest } from "@/lib/video/types";
+import { projectStore, scriptStore, uid } from "@/lib/video/db";
+import { offlineScript, projectFromScript } from "@/lib/video/templates";
+import { PRESETS, type ScriptDoc, type ScriptRequest } from "@/lib/video/types";
 import { Empty, Field, PageHead, Slider, useToast } from "./ui";
 
 const PLATFORMS = [
@@ -18,9 +19,11 @@ const TONES = ["năng lượng", "cảm xúc", "hài hước", "sang trọng", "
 
 export default function ScriptClient() {
   const toast = useToast();
+  const router = useRouter();
   const [docs, setDocs] = useState<ScriptDoc[]>([]);
   const [active, setActive] = useState<ScriptDoc | null>(null);
   const [running, setRunning] = useState(false);
+  const [presetId, setPresetId] = useState(PRESETS[0].id);
 
   const [form, setForm] = useState<ScriptRequest>({
     brief: "",
@@ -95,6 +98,18 @@ export default function ScriptClient() {
     await scriptStore.remove(doc.id);
     if (active?.id === doc.id) setActive(null);
     await reload();
+  };
+
+  /** Biến shotlist thành project storyboard rồi mở Editor. */
+  const buildProject = async (doc: ScriptDoc) => {
+    if (doc.shots.length === 0) {
+      toast.error("Kịch bản chưa có cảnh nào");
+      return;
+    }
+    const preset = PRESETS.find((p) => p.id === presetId) ?? PRESETS[0];
+    const project = projectFromScript(doc, preset.width, preset.height);
+    await projectStore.put(project);
+    router.push(`/video/editor/${project.id}`);
   };
 
   const copyAll = async (doc: ScriptDoc) => {
@@ -235,12 +250,19 @@ export default function ScriptClient() {
               desc="Nhập brief bên trái rồi bấm “Viết kịch bản”. Kết quả gồm hook, voiceover, shotlist và prompt AI cho từng cảnh."
             />
           ) : (
-            <ScriptView doc={active} onCopyAll={() => void copyAll(active)} onCopy={(text) => {
-              void navigator.clipboard.writeText(text).then(
-                () => toast.show("Đã copy"),
-                () => toast.error("Trình duyệt chặn clipboard"),
-              );
-            }} />
+            <ScriptView
+              doc={active}
+              presetId={presetId}
+              onPreset={setPresetId}
+              onBuild={() => void buildProject(active)}
+              onCopyAll={() => void copyAll(active)}
+              onCopy={(text) => {
+                void navigator.clipboard.writeText(text).then(
+                  () => toast.show("Đã copy"),
+                  () => toast.error("Trình duyệt chặn clipboard"),
+                );
+              }}
+            />
           )}
         </section>
       </div>
@@ -252,10 +274,16 @@ export default function ScriptClient() {
 
 function ScriptView({
   doc,
+  presetId,
+  onPreset,
+  onBuild,
   onCopy,
   onCopyAll,
 }: {
   doc: ScriptDoc;
+  presetId: string;
+  onPreset: (id: string) => void;
+  onBuild: () => void;
   onCopy: (text: string) => void;
   onCopyAll: () => void;
 }) {
@@ -279,6 +307,30 @@ function ScriptView({
           </div>
         </div>
         <p className="text-sm">{doc.logline}</p>
+
+        <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-dark/10 pt-3">
+          <label className="min-w-[200px] flex-1">
+            <span className="label">Khung hình cho bản dựng</span>
+            <select
+              className="input"
+              value={presetId}
+              onChange={(e) => onPreset(e.target.value)}
+            >
+              {PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="btn-primary h-[38px]" onClick={onBuild}>
+            Dựng khung trong Editor →
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-dark/50">
+          Tạo project với {doc.shots.length} clip trống mang sẵn chữ của từng cảnh — vào Editor
+          gắn footage vào là xong.
+        </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

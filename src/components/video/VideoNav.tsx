@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/video/production", label: "Sản xuất" },
   { href: "/video/talents", label: "Talent" },
   { href: "/video/media", label: "Thư viện" },
+  { href: "/video/backup", label: "Sao lưu" },
 ];
 
 export default function VideoNav() {

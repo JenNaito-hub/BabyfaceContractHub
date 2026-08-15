@@ -91,7 +91,9 @@ export class MediaPool {
 
   async loadProject(project: Project): Promise<void> {
     const ids = new Set<string>();
-    project.clips.forEach((c) => ids.add(c.assetId));
+    project.clips.forEach((c) => {
+      if (c.assetId) ids.add(c.assetId); // bỏ qua clip placeholder
+    });
     if (project.music) ids.add(project.music.assetId);
     if (project.watermark) ids.add(project.watermark.assetId);
     for (const id of ids) await this.load(id);
@@ -200,8 +202,9 @@ function drawCaption(
   const end = cap.hold > 0 ? cap.delay + cap.hold : clipDuration;
   if (local < cap.delay || local > end) return;
 
-  // Fade chữ vào/ra trong 0.25s.
-  const fadeIn = Math.min(1, (local - cap.delay) / 0.25);
+  // Fade chữ vào/ra trong 0.25s. Delay = 0 nghĩa là "hiện ngay từ khung đầu"
+  // — không fade vào, nếu không khung hình đầu tiên sẽ trống trơn.
+  const fadeIn = cap.delay > 0 ? Math.min(1, (local - cap.delay) / 0.25) : 1;
   const fadeOut = Math.min(1, (end - local) / 0.25);
   const a = alpha * Math.max(0, Math.min(fadeIn, fadeOut));
   if (a <= 0) return;
@@ -299,18 +302,26 @@ function drawOneClip(
 ) {
   const clip = project.clips[index];
   if (!clip) return;
-  const src = pool.drawable(clip.assetId);
-  if (!src) return;
 
   const W = project.width;
   const H = project.height;
-  const progress = clip.duration > 0 ? Math.max(0, Math.min(1, local / clip.duration)) : 0;
-  const zoom = 1 + (clip.zoom - 1) * progress;
+  const src = clip.assetId ? pool.drawable(clip.assetId) : null;
 
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  drawSource(ctx, src, W, H, clip.fit, zoom, offsetX);
-  ctx.restore();
+  if (src) {
+    const progress = clip.duration > 0 ? Math.max(0, Math.min(1, local / clip.duration)) : 0;
+    const zoom = 1 + (clip.zoom - 1) * progress;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawSource(ctx, src, W, H, clip.fit, zoom, offsetX);
+    ctx.restore();
+  } else if (!clip.assetId) {
+    // Clip placeholder: phủ nền mờ để phân biệt với clip đã có footage.
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.fillStyle = "#2b2b2b";
+    ctx.fillRect(offsetX, 0, W, H);
+    ctx.restore();
+  }
 
   if (clip.caption) {
     drawCaption(ctx, clip.caption, W, H, local, clip.duration, alpha, offsetX);
@@ -519,10 +530,18 @@ export class Player {
     }
 
     const music = this.project.music ? this.pool.audio(this.project.music.assetId) : null;
-    if (music) music.currentTime = Math.min(this.time, music.duration || this.time);
+    if (music) music.currentTime = this.musicTimeFor(this.time, music);
 
     this.render();
     this.onTime?.(this.time);
+  }
+
+  /** Vị trí trong file nhạc ứng với thời điểm t của timeline. */
+  private musicTimeFor(t: number, el: HTMLMediaElement): number {
+    const start = this.project.music?.startAt ?? 0;
+    const target = start + t;
+    const max = Number.isFinite(el.duration) ? Math.max(0, el.duration - 0.05) : target;
+    return Math.min(target, max);
   }
 
   render(): void {
@@ -543,7 +562,7 @@ export class Player {
     const music = this.project.music ? this.pool.audio(this.project.music.assetId) : null;
     if (music && this.project.music) {
       mixer.setVolume(music, this.project.music.volume);
-      music.currentTime = Math.min(this.time, music.duration || 0);
+      music.currentTime = this.musicTimeFor(this.time, music);
       await music.play().catch(() => {});
     }
 
@@ -599,7 +618,7 @@ export class Player {
     const activeIds = new Set<string>();
     const activate = (index: number, local: number) => {
       const clip = this.project.clips[index];
-      if (!clip) return;
+      if (!clip || !clip.assetId) return; // clip placeholder không có media để chạy
       activeIds.add(clip.assetId);
       const v = this.pool.video(clip.assetId);
       if (!v) return;

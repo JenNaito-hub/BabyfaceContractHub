@@ -43,6 +43,10 @@ export type Transition = "none" | "fade" | "slide";
 
 export type Clip = {
   id: string;
+  /**
+   * Rỗng = clip placeholder (chưa gắn media) — dùng khi dựng khung từ shotlist.
+   * Vẫn render được: hiện nền + chữ, để sau ráp footage vào.
+   */
   assetId: string;
   /** Cắt từ giây nào của file gốc (video). */
   trimStart: number;
@@ -63,6 +67,8 @@ export type MusicTrack = {
   volume: number;
   /** Fade out ở N giây cuối. */
   fadeOut: number;
+  /** Bắt đầu nhạc từ giây thứ mấy của file (bỏ qua đoạn intro). */
+  startAt?: number;
 };
 
 export type Watermark = {
@@ -132,6 +138,8 @@ export type Deliverable = {
   /** Link bản cut để review (Drive, Frame.io...). */
   link: string;
   note: string;
+  /** Nối tới project trong Editor để mở thẳng bản dựng. */
+  projectId?: string;
 };
 
 export type ShootDay = {

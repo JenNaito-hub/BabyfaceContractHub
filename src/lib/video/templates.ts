@@ -205,6 +205,64 @@ export function emptyProject(name: string, width: number, height: number): Proje
   };
 }
 
+/** "5s" · "3-4s" · "khoảng 2 giây" → số giây. Không đọc được thì trả về mặc định. */
+function parseSeconds(raw: string, fallback: number): number {
+  const match = raw.match(/(\d+(?:[.,]\d+)?)/);
+  if (!match) return fallback;
+  const n = Number(match[1].replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 60) : fallback;
+}
+
+/**
+ * Dựng project storyboard từ shotlist: mỗi cảnh thành 1 clip placeholder
+ * (chưa có media) mang sẵn chữ mô tả. Ráp footage vào sau trong Editor.
+ */
+export function projectFromScript(
+  doc: ScriptDoc,
+  width: number,
+  height: number,
+): Project {
+  const fallback = doc.shots.length > 0 ? doc.durationSec / doc.shots.length : 3;
+
+  const clips: Clip[] = doc.shots.map((shot, i) => ({
+    id: uid("clip"),
+    assetId: "", // placeholder — Editor sẽ hỏi gắn media
+    trimStart: 0,
+    duration: parseSeconds(shot.duration, fallback),
+    fit: "cover",
+    zoom: 1,
+    transition: i === 0 ? "none" : "fade",
+    muted: true,
+    volume: 1,
+    caption: {
+      text: shot.shot,
+      sub: shot.description,
+      align: "center",
+      x: 50,
+      y: 50,
+      size: 5,
+      color: "#FFFFFF",
+      background: "rgba(26,26,26,0.7)",
+      delay: 0,
+      hold: 0,
+    },
+  }));
+
+  const now = Date.now();
+  return {
+    id: uid("prj"),
+    name: doc.title,
+    width,
+    height,
+    fps: 30,
+    background: "#1A1A1A",
+    clips,
+    createdAt: now,
+    updatedAt: now,
+    origin: "editor",
+  };
+}
+
 export function defaultCaption(text: string): Caption {
   return {
     text,

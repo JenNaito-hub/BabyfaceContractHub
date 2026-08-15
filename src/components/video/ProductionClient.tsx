@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { productionStore, uid } from "@/lib/video/db";
+import { productionStore, projectStore, uid } from "@/lib/video/db";
 import type {
   Deliverable,
   Production,
   ProductionStatus,
+  Project,
   ShootDay,
 } from "@/lib/video/types";
 import { Empty, Field, PageHead, formatVND, useToast } from "./ui";
@@ -46,6 +48,7 @@ function blank(): Production {
 
 export default function ProductionClient() {
   const [items, setItems] = useState<Production[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Production | null>(null);
@@ -58,6 +61,9 @@ export default function ProductionClient() {
 
   useEffect(() => {
     void reload();
+    void projectStore
+      .list()
+      .then((rows) => setProjects(rows.sort((a, b) => b.updatedAt - a.updatedAt)));
   }, []);
 
   const save = async () => {
@@ -223,16 +229,31 @@ export default function ProductionClient() {
                                 {d.spec}
                                 {d.due && ` · hạn ${d.due}`}
                               </p>
-                              {d.link && (
-                                <a
-                                  href={d.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs font-semibold underline"
-                                >
-                                  Mở link review
-                                </a>
-                              )}
+                              <div className="flex flex-wrap gap-3">
+                                {d.link && (
+                                  <a
+                                    href={d.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-semibold underline"
+                                  >
+                                    Mở link review
+                                  </a>
+                                )}
+                                {d.projectId &&
+                                  (projects.some((p) => p.id === d.projectId) ? (
+                                    <Link
+                                      href={`/video/editor/${d.projectId}`}
+                                      className="text-xs font-semibold underline"
+                                    >
+                                      Mở bản dựng trong Editor
+                                    </Link>
+                                  ) : (
+                                    <span className="text-xs text-warning">
+                                      Project đã bị xoá
+                                    </span>
+                                  ))}
+                              </div>
                               {d.note && <p className="text-xs text-dark/55">{d.note}</p>}
                             </li>
                           ))}
@@ -479,6 +500,22 @@ export default function ProductionClient() {
                       value={d.link}
                       onChange={(e) => patchDel(patchDraft, i, { link: e.target.value })}
                     />
+                  </div>
+                  <div className="mt-2">
+                    <select
+                      className="input"
+                      value={d.projectId ?? ""}
+                      onChange={(e) =>
+                        patchDel(patchDraft, i, { projectId: e.target.value || undefined })
+                      }
+                    >
+                      <option value="">— chưa nối với project video nào —</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.width}×{p.height}, {p.clips.length} clip)
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               ))}
