@@ -86,6 +86,18 @@ Talent + ảnh/clip  →  Showreel tự động  ──────────�
 Dự án sản xuất  →  deliverable  →  nối tới project  →  mở Editor
 ```
 
+## Chạy trên máy
+
+Cần **Node 22 trở lên** (`@supabase/supabase-js` yêu cầu vậy — kiểm tra bằng `node -v`).
+
+```bash
+npm install
+npm run dev          # http://localhost:3000/video
+```
+
+Không cần Supabase, không cần API key nào. Xuất video chạy được vì `localhost`
+được trình duyệt coi là môi trường an toàn.
+
 ## Cấu hình
 
 Chỉ cần biến này, và chỉ cho phần Kịch bản AI:
