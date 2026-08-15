@@ -31,7 +31,10 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isProtected =
-    pathname === "/" || pathname.startsWith("/talent") || pathname.startsWith("/sales");
+    pathname === "/" ||
+    pathname.startsWith("/talent") ||
+    pathname.startsWith("/sales") ||
+    pathname.startsWith("/print");
 
   // Chưa đăng nhập mà vào khu vực bảo vệ → đẩy về /login
   if (!user && isProtected) {

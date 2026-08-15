@@ -41,7 +41,7 @@ export default function PosClient({
   const [ghiChu, setGhiChu] = useState("");
   const [dangLuu, setDangLuu] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
-  const [xong, setXong] = useState<{ ma_don: string; tong: number } | null>(null);
+  const [xong, setXong] = useState<{ id: string; ma_don: string; tong: number } | null>(null);
 
   const tonKho = useMemo(() => {
     const m = new Map<string, number>();
@@ -152,7 +152,11 @@ export default function PosClient({
       .eq("id", data as string)
       .maybeSingle();
 
-    setXong({ ma_don: don?.ma_don ?? "—", tong: don?.tong_tien ?? tongTien });
+    setXong({
+      id: data as string,
+      ma_don: don?.ma_don ?? "—",
+      tong: don?.tong_tien ?? tongTien,
+    });
     setCart([]);
     setKhachTen("");
     setKhachSdt("");
@@ -191,11 +195,26 @@ export default function PosClient({
             ))}
           </div>
 
+          {/* Máy quét mã vạch gõ nhanh rồi Enter → thêm thẳng sản phẩm khớp đầu tiên */}
           <input
             className="input flex-1"
-            placeholder="Tìm SKU, tên nước hoa, barcode…"
+            placeholder="Tìm SKU, tên nước hoa, quét mã vạch…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || !q.trim()) return;
+              e.preventDefault();
+              const khop =
+                variants.find((v) => v.barcode && v.barcode.toLowerCase() === q.trim().toLowerCase()) ??
+                variants.find((v) => v.sku.toLowerCase() === q.trim().toLowerCase()) ??
+                ketQua[0];
+              if (khop && ton(khop.id) > 0) {
+                themVaoGio(khop);
+                setQ("");
+              } else if (khop) {
+                setLoi(`${khop.sku} đã hết hàng tại cửa hàng này`);
+              }
+            }}
             autoFocus
           />
         </div>
@@ -411,9 +430,17 @@ export default function PosClient({
             <p className="mt-1 text-xs text-dark/60">
               Tồn kho đã trừ tự động. Xem lại ở tab Đơn hàng.
             </p>
-            <button className="btn-ghost mt-2 text-xs" onClick={() => setXong(null)}>
-              Đóng
-            </button>
+            <div className="mt-2 flex gap-2">
+              <button
+                className="btn-dark text-xs"
+                onClick={() => window.open(`/print/orders?ids=${xong.id}&kieu=hoadon`, "_blank")}
+              >
+                In hoá đơn
+              </button>
+              <button className="btn-ghost text-xs" onClick={() => setXong(null)}>
+                Đóng
+              </button>
+            </div>
           </div>
         )}
       </div>

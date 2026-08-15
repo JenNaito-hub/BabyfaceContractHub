@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { Empty } from "@/components/sales/Bits";
 import { createClient } from "@/lib/supabase/client";
+import { TINH_THANH } from "@/lib/sales/address";
 import type { Profile, UserRole } from "@/lib/types";
 import type { Store } from "@/lib/sales/types";
 
@@ -27,6 +28,24 @@ export default function SettingsClient({
   const [form, setForm] = useState<Partial<Store> | null>(null);
   const [dangLuu, setDangLuu] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
+  const [dangTest, setDangTest] = useState(false);
+  const [ketQuaTest, setKetQuaTest] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function kiemTraGhtk() {
+    setDangTest(true);
+    setKetQuaTest(null);
+    try {
+      const res = await fetch("/api/shipping/test", { method: "POST" });
+      const json = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+      setKetQuaTest({
+        ok: Boolean(json.ok),
+        message: json.message ?? json.error ?? "Không rõ kết quả",
+      });
+    } catch (e) {
+      setKetQuaTest({ ok: false, message: (e as Error).message });
+    }
+    setDangTest(false);
+  }
 
   async function luuStore() {
     if (!form?.ma?.trim() || !form.ten?.trim()) {
@@ -41,6 +60,8 @@ export default function SettingsClient({
       ten: form.ten.trim(),
       loai: form.loai ?? "store",
       dia_chi: form.dia_chi || null,
+      tinh: form.tinh || null,
+      quan: form.quan || null,
       sdt: form.sdt || null,
       active: form.active ?? true,
     };
@@ -185,6 +206,34 @@ export default function SettingsClient({
       </div>
 
       <div className="card">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display font-extrabold">Kết nối GHTK</h2>
+          <button className="btn-ghost" onClick={kiemTraGhtk} disabled={dangTest}>
+            {dangTest ? "Đang kiểm tra…" : "Kiểm tra kết nối"}
+          </button>
+        </div>
+        <p className="text-sm text-dark/60">
+          Bật bằng biến môi trường <code>GHTK_TOKEN</code> trên Vercel (lấy trong GHTK → Cài đặt →
+          API), rồi deploy lại. Có token rồi thì ở màn hình chi tiết đơn sẽ hiện nút{" "}
+          <strong>Đẩy sang GHTK</strong>, và nút <strong>Đồng bộ vận chuyển</strong> ở danh sách
+          đơn sẽ tự cập nhật trạng thái giao hàng.
+        </p>
+        <p className="mt-2 text-xs text-dark/50">
+          Trước khi đẩy đơn, mỗi cửa hàng phải khai đủ địa chỉ + tỉnh + quận + SĐT ở bảng trên,
+          và đơn phải có tỉnh/quận của khách.
+        </p>
+        {ketQuaTest && (
+          <p
+            className={`mt-2 rounded-lg px-3 py-2 text-sm ${
+              ketQuaTest.ok ? "bg-lime/25" : "bg-warning/10 text-warning"
+            }`}
+          >
+            {ketQuaTest.message}
+          </p>
+        )}
+      </div>
+
+      <div className="card">
         <h2 className="mb-2 font-display font-extrabold">Kết nối website</h2>
         <p className="text-sm text-dark/60">
           Website Aescentic có thể đẩy đơn thẳng vào hệ thống bằng cách gọi:
@@ -261,6 +310,28 @@ x-webhook-secret: <ORDER_WEBHOOK_SECRET>
                 className="input"
                 value={form.dia_chi ?? ""}
                 onChange={(e) => setForm({ ...form, dia_chi: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="label">Tỉnh / Thành (lấy hàng)</label>
+              <input
+                className="input"
+                list="ds-tinh-store"
+                value={form.tinh ?? ""}
+                onChange={(e) => setForm({ ...form, tinh: e.target.value })}
+              />
+              <datalist id="ds-tinh-store">
+                {TINH_THANH.map((t) => (
+                  <option key={t.ten} value={t.ten} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label className="label">Quận / Huyện (lấy hàng)</label>
+              <input
+                className="input"
+                value={form.quan ?? ""}
+                onChange={(e) => setForm({ ...form, quan: e.target.value })}
               />
             </div>
             <div>

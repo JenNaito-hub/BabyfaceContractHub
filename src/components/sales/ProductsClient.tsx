@@ -18,6 +18,7 @@ const VARIANT_RONG = {
   gia_ban: "0",
   gia_si: "0",
   ton_toi_thieu: "0",
+  khoi_luong_gram: "0",
   gia_von: "0",
   active: true,
 };
@@ -104,6 +105,7 @@ export default function ProductsClient({
       gia_ban: Number(formBt.gia_ban) || 0,
       gia_si: Number(formBt.gia_si) || 0,
       ton_toi_thieu: Number(formBt.ton_toi_thieu) || 0,
+      khoi_luong_gram: Number(formBt.khoi_luong_gram) || 0,
       active: formBt.active,
     };
 
@@ -142,6 +144,7 @@ export default function ProductsClient({
       gia_ban: String(v.gia_ban),
       gia_si: String(v.gia_si),
       ton_toi_thieu: String(v.ton_toi_thieu),
+      khoi_luong_gram: String(v.khoi_luong_gram),
       gia_von: String(giaVon.get(v.id) ?? 0),
       active: v.active,
     });
@@ -425,6 +428,18 @@ export default function ProductsClient({
                   setFormBt({ ...formBt, ton_toi_thieu: e.target.value.replace(/\D/g, "") })
                 }
               />
+            </div>
+            <div>
+              <label className="label">Khối lượng cả hộp (gram)</label>
+              <input
+                className="input text-right"
+                value={formBt.khoi_luong_gram}
+                onChange={(e) =>
+                  setFormBt({ ...formBt, khoi_luong_gram: e.target.value.replace(/\D/g, "") })
+                }
+                placeholder="300"
+              />
+              <p className="mt-1 text-xs text-dark/50">Dùng để hãng ship tính phí. Bỏ trống = 300g.</p>
             </div>
             <label className="flex items-center gap-2 text-sm sm:col-span-2">
               <input

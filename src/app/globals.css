@@ -58,3 +58,23 @@ h4,
     @apply px-3 py-2 text-sm align-middle;
   }
 }
+
+/* ---- In ấn: phiếu giao hàng & hoá đơn ---- */
+@media print {
+  @page {
+    margin: 8mm;
+  }
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* Mỗi phiếu 1 trang, trang cuối không đẩy thêm trang trắng */
+  .print-page {
+    break-after: page;
+  }
+  .print-page:last-child {
+    break-after: auto;
+  }
+}

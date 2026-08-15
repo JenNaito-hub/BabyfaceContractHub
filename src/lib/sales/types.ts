@@ -18,6 +18,9 @@ export type Store = {
   ten: string;
   loai: "store" | "warehouse";
   dia_chi: string | null;
+  /** Tỉnh/thành và quận/huyện nơi lấy hàng — API hãng vận chuyển bắt buộc. */
+  tinh: string | null;
+  quan: string | null;
   sdt: string | null;
   active: boolean;
   created_at: string;
@@ -42,6 +45,8 @@ export type Variant = {
   gia_ban: number;
   gia_si: number;
   ton_toi_thieu: number;
+  /** Khối lượng cả hộp (gram) — dùng tính phí ship. 0 = dùng mặc định. */
+  khoi_luong_gram: number;
   active: boolean;
   created_at: string;
 };
@@ -97,6 +102,9 @@ export type Order = {
   khach_ten: string | null;
   khach_sdt: string | null;
   dia_chi: string | null;
+  tinh: string | null;
+  quan: string | null;
+  phuong: string | null;
   trang_thai: TrangThaiDon;
   thanh_toan: TrangThaiThanhToan;
   tam_tinh: number;
@@ -111,6 +119,12 @@ export type Order = {
   da_tru_kho: boolean;
   /** Đơn lịch sử import từ sàn — tính doanh thu nhưng không đụng tồn kho. */
   bo_qua_kho: boolean;
+  /** Số tiền COD hãng ship thực trả về, điền khi đối soát. */
+  cod_da_thu: number | null;
+  ngay_doi_soat: string | null;
+  /** Trạng thái thô lấy từ API hãng vận chuyển. */
+  trang_thai_ship: string | null;
+  ship_cap_nhat_luc: string | null;
   created_by: string | null;
   created_at: string;
 };

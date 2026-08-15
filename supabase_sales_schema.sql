@@ -102,10 +102,14 @@ create table if not exists public.stores (
   ten text not null,
   loai text not null default 'store' check (loai in ('store','warehouse')),
   dia_chi text,
+  tinh text,                                -- bắt buộc nếu dùng API hãng vận chuyển
+  quan text,
   sdt text,
   active boolean not null default true,
   created_at timestamptz default now()
 );
+alter table public.stores add column if not exists tinh text;
+alter table public.stores add column if not exists quan text;
 
 alter table public.profiles
   drop constraint if exists profiles_store_id_fkey;
@@ -146,9 +150,11 @@ create table if not exists public.variants (
   gia_ban bigint not null default 0,        -- giá lẻ
   gia_si bigint not null default 0,         -- giá sỉ / đại lý
   ton_toi_thieu int not null default 0,     -- ngưỡng cảnh báo hết hàng
+  khoi_luong_gram int not null default 0,   -- gồm cả hộp, dùng để tính phí ship
   active boolean not null default true,
   created_at timestamptz default now()
 );
+alter table public.variants add column if not exists khoi_luong_gram int not null default 0;
 create index if not exists variants_product_idx on public.variants(product_id);
 create index if not exists variants_sku_idx on public.variants(sku);
 
@@ -270,6 +276,20 @@ create table if not exists public.orders (
   created_at timestamptz default now()
 );
 alter table public.orders add column if not exists bo_qua_kho boolean not null default false;
+
+-- Địa chỉ tách cấp — hãng vận chuyển bắt buộc có tỉnh/quận/phường
+alter table public.orders add column if not exists tinh text;
+alter table public.orders add column if not exists quan text;
+alter table public.orders add column if not exists phuong text;
+
+-- Đối soát COD: số tiền hãng ship thực trả về và ngày đối soát
+alter table public.orders add column if not exists cod_da_thu bigint;
+alter table public.orders add column if not exists ngay_doi_soat date;
+-- Trạng thái mới nhất lấy từ API hãng vận chuyển (text thô của hãng)
+alter table public.orders add column if not exists trang_thai_ship text;
+alter table public.orders add column if not exists ship_cap_nhat_luc timestamptz;
+create index if not exists orders_van_don_idx on public.orders(ma_van_don)
+  where ma_van_don is not null;
 create index if not exists orders_ngay_idx on public.orders(ngay_dat desc);
 create index if not exists orders_kenh_idx on public.orders(kenh);
 create index if not exists orders_store_idx on public.orders(store_id);
@@ -626,7 +646,7 @@ create or replace function public.tao_don_hang(
 declare v_id uuid; it jsonb; v_variant uuid;
 begin
   insert into public.orders (
-    kenh, store_id, khach_ten, khach_sdt, dia_chi, thanh_toan,
+    kenh, store_id, khach_ten, khach_sdt, dia_chi, tinh, quan, phuong, thanh_toan,
     giam_gia, phi_ship, don_vi_van_chuyen, ma_van_don, ma_don_san, ngay_dat, ghi_chu,
     bo_qua_kho, created_by
   ) values (
@@ -635,6 +655,9 @@ begin
     nullif(p_order->>'khach_ten', ''),
     nullif(p_order->>'khach_sdt', ''),
     nullif(p_order->>'dia_chi', ''),
+    nullif(p_order->>'tinh', ''),
+    nullif(p_order->>'quan', ''),
+    nullif(p_order->>'phuong', ''),
     coalesce(p_order->>'thanh_toan', 'chua'),
     coalesce((p_order->>'giam_gia')::bigint, 0),
     coalesce((p_order->>'phi_ship')::bigint, 0),

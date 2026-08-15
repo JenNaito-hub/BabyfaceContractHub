@@ -33,7 +33,10 @@ export default function OrdersClient({
   const [storeId, setStoreId] = useState("all");
   const [moForm, setMoForm] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
+  const [tinNhan, setTinNhan] = useState<string | null>(null);
   const [dangDoi, setDangDoi] = useState<string | null>(null);
+  const [chon, setChon] = useState<Set<string>>(new Set());
+  const [dangHangLoat, setDangHangLoat] = useState(false);
 
   const storeNames = useMemo(
     () => Object.fromEntries(stores.map((s) => [s.id, s.ten])) as Record<string, string>,
@@ -77,6 +80,72 @@ export default function OrdersClient({
     router.refresh();
   }
 
+  const hienThi = ketQua.slice(0, 200);
+  const daChonHet = hienThi.length > 0 && hienThi.every((o) => chon.has(o.id));
+
+  function doiChon(id: string) {
+    setChon((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  /** Đổi trạng thái nhiều đơn một lượt — báo rõ đơn nào lỗi thay vì im lặng. */
+  async function doiTrangThaiHangLoat(next: TrangThaiDon) {
+    if (!chon.size) return;
+    setDangHangLoat(true);
+    setLoi(null);
+    setTinNhan(null);
+
+    const supabase = createClient();
+    const loiDon: string[] = [];
+    let ok = 0;
+
+    for (const id of chon) {
+      const o = orders.find((x) => x.id === id);
+      const { error } = await supabase.from("orders").update({ trang_thai: next }).eq("id", id);
+      if (error) loiDon.push(`${o?.ma_don ?? id}: ${error.message}`);
+      else ok += 1;
+    }
+
+    setDangHangLoat(false);
+    setTinNhan(`Đã đổi ${ok}/${chon.size} đơn sang "${TRANG_THAI_LABEL[next]}"`);
+    if (loiDon.length) setLoi(loiDon.join(" · "));
+    setChon(new Set());
+    router.refresh();
+  }
+
+  /** Tra trạng thái vận đơn ở hãng ship và cập nhật lại. */
+  async function dongBoVanChuyen() {
+    setDangHangLoat(true);
+    setLoi(null);
+    setTinNhan(null);
+    try {
+      const res = await fetch("/api/shipping/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(chon.size ? { orderIds: [...chon] } : {}),
+      });
+      const json = (await res.json()) as {
+        error?: string;
+        tra?: number;
+        doi?: number;
+        loi?: string[];
+      };
+      if (!res.ok) setLoi(json.error ?? "Không đồng bộ được");
+      else {
+        setTinNhan(`Đã tra ${json.tra ?? 0} vận đơn · ${json.doi ?? 0} đơn đổi trạng thái`);
+        if (json.loi?.length) setLoi(json.loi.slice(0, 5).join(" · "));
+        router.refresh();
+      }
+    } catch (e) {
+      setLoi((e as Error).message);
+    }
+    setDangHangLoat(false);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -86,7 +155,15 @@ export default function OrdersClient({
             {ketQua.length} đơn · doanh thu hoàn thành {formatVND(tongThu)}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost" onClick={dongBoVanChuyen} disabled={dangHangLoat}>
+            {dangHangLoat ? "Đang xử lý…" : "Đồng bộ vận chuyển"}
+          </button>
+          {isManager && (
+            <Link href="/sales/orders/cod" className="btn-ghost">
+              Đối soát COD
+            </Link>
+          )}
           <Link href="/sales/orders/import" className="btn-ghost">
             Nhập file sàn
           </Link>
@@ -134,6 +211,42 @@ export default function OrdersClient({
       </div>
 
       {loi && <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">{loi}</p>}
+      {tinNhan && (
+        <p className="rounded-lg bg-lime/25 px-3 py-2 text-sm font-semibold">{tinNhan}</p>
+      )}
+
+      {chon.size > 0 && (
+        <div className="card flex flex-wrap items-center gap-3 border-dark/30">
+          <span className="text-sm font-semibold">Đã chọn {chon.size} đơn</span>
+          <button
+            className="btn-ghost"
+            onClick={() =>
+              window.open(`/print/orders?ids=${[...chon].join(",")}&kieu=phieu`, "_blank")
+            }
+          >
+            In phiếu giao
+          </button>
+          <select
+            className="input w-auto"
+            defaultValue=""
+            disabled={dangHangLoat}
+            onChange={(e) => {
+              if (e.target.value) doiTrangThaiHangLoat(e.target.value as TrangThaiDon);
+              e.target.value = "";
+            }}
+          >
+            <option value="">Chuyển trạng thái…</option>
+            {TRANG_THAI_LIST.map((t) => (
+              <option key={t} value={t}>
+                {TRANG_THAI_LABEL[t]}
+              </option>
+            ))}
+          </select>
+          <button className="btn-ghost ml-auto" onClick={() => setChon(new Set())}>
+            Bỏ chọn
+          </button>
+        </div>
+      )}
 
       <div className="card overflow-x-auto p-0">
         {ketQua.length === 0 ? (
@@ -142,6 +255,16 @@ export default function OrdersClient({
           <table className="w-full min-w-[900px]">
             <thead>
               <tr className="border-b border-dark/10">
+                <th className="th w-8">
+                  <input
+                    type="checkbox"
+                    checked={daChonHet}
+                    onChange={(e) =>
+                      setChon(e.target.checked ? new Set(hienThi.map((o) => o.id)) : new Set())
+                    }
+                    aria-label="Chọn tất cả"
+                  />
+                </th>
                 <th className="th">Mã đơn</th>
                 <th className="th">Ngày</th>
                 <th className="th">Kênh</th>
@@ -153,8 +276,16 @@ export default function OrdersClient({
               </tr>
             </thead>
             <tbody>
-              {ketQua.slice(0, 200).map((o) => (
+              {hienThi.map((o) => (
                 <tr key={o.id} className="border-b border-dark/5 hover:bg-dark/[0.02]">
+                  <td className="td">
+                    <input
+                      type="checkbox"
+                      checked={chon.has(o.id)}
+                      onChange={() => doiChon(o.id)}
+                      aria-label={`Chọn ${o.ma_don}`}
+                    />
+                  </td>
                   <td className="td">
                     <Link href={`/sales/orders/${o.id}`} className="font-semibold underline">
                       {o.ma_don}

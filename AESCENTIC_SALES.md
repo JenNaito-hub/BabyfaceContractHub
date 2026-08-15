@@ -30,7 +30,80 @@ dùng chung 1 tài khoản đăng nhập.
 - **Báo cáo** *(quản lý)* — chọn khoảng ngày bất kỳ, lãi gộp theo kênh và theo SKU,
   COD chưa thu.
 - **Cài đặt** *(quản lý)* — đổi tên 5 cửa hàng, thêm kho, gán quyền và cửa hàng cho
-  nhân viên.
+  nhân viên, kiểm tra kết nối GHTK.
+
+## In phiếu
+
+- **Phiếu giao hàng** (khổ A5) — dán lên kiện hàng: thông tin người nhận, mã vận đơn,
+  danh sách hàng, số tiền thu hộ in đậm trên nền đen.
+- **Hoá đơn bán lẻ** (khổ 80mm) — cho máy in nhiệt tại quầy, in ngay sau khi thanh
+  toán ở POS.
+
+In hàng loạt: ở danh sách đơn tick chọn nhiều đơn → **In phiếu giao**, mỗi đơn 1 trang.
+
+## Thao tác hàng loạt
+
+Tick chọn nhiều đơn trong danh sách để: đổi trạng thái cả loạt (vd sáng ra chuyển hết
+đơn mới sang *Đã xác nhận*), in phiếu giao, hoặc đồng bộ trạng thái vận chuyển.
+Đơn nào lỗi (thường do thiếu tồn kho) sẽ được liệt kê riêng chứ không bỏ qua im lặng.
+
+## Đối soát COD
+
+**Đơn hàng → Đối soát COD** *(quản lý)*. Tải file đối soát của hãng ship lên, hệ thống
+khớp theo **mã vận đơn** và phân loại từng dòng:
+
+| Kết quả | Nghĩa là |
+| --- | --- |
+| Khớp | Tiền hãng trả đúng bằng tổng đơn |
+| Lệch tiền | Có chênh lệch — xem lại trước khi ghi nhận |
+| Không thấy đơn | Mã vận đơn không có trong hệ thống |
+| Đã đối soát | Đơn này đã đối soát ở lần trước, bỏ qua |
+
+Bấm ghi nhận thì đơn được đánh dấu **đã thanh toán**, lưu số tiền hãng thực trả và ngày
+đối soát; đơn đang giao tự chuyển sang *Hoàn thành*. Ô **COD còn treo** ở đầu trang cho
+biết tổng tiền đã giao hàng nhưng chưa nhận về.
+
+## Nối API Giao Hàng Tiết Kiệm (GHTK)
+
+Bật bằng biến môi trường trên Vercel rồi deploy lại:
+
+| Biến | Bắt buộc | Ghi chú |
+| --- | --- | --- |
+| `GHTK_TOKEN` | ✅ | Lấy trong GHTK → Cài đặt → API |
+| `GHTK_BASE_URL` | ❌ | Chỉ đặt nếu GHTK đổi domain API |
+
+Sau đó vào **Cài đặt → Kết nối GHTK → Kiểm tra kết nối** để xác nhận token dùng được
+trước khi đẩy đơn thật.
+
+Khi đã bật:
+- Trang chi tiết đơn có nút **Đẩy sang GHTK** — tạo vận đơn, lưu mã vận đơn và phí ship
+  về đơn. Đơn COD sẽ khai báo tiền thu hộ đúng bằng tổng đơn.
+- Nút **Đồng bộ vận chuyển** ở danh sách đơn tra trạng thái các đơn đang trên đường
+  (tối đa 40 đơn/lần) và tự cập nhật trạng thái đơn theo hãng.
+
+Điều kiện để đẩy đơn thành công:
+- Cửa hàng xuất hàng phải khai đủ **địa chỉ + tỉnh + quận + SĐT** (Cài đặt → Cửa hàng).
+- Đơn phải có **tên, SĐT, địa chỉ, tỉnh, quận** của khách.
+- Nên khai **khối lượng cả hộp** cho từng SKU (Sản phẩm → sửa biến thể); bỏ trống thì
+  hệ thống tính tạm 300g/sản phẩm.
+
+Token GHTK chỉ nằm ở biến môi trường phía server, không bao giờ gửi xuống trình duyệt.
+
+> Lưu ý thẳng thắn: phần nối GHTK viết theo tài liệu công khai của hãng nhưng **chưa
+> chạy thử với token thật**. Hãy bấm *Kiểm tra kết nối* và đẩy thử 1 đơn nháp trước khi
+> dùng cho đơn thật. Nếu GHTK đổi API, lỗi trả về sẽ hiện nguyên văn để dễ sửa.
+
+## Nhập nhanh thông tin khách
+
+Ô **dán thông tin khách từ inbox** nhận nguyên đoạn khách gửi (nhiều dòng hay một dòng
+đều được, có hay không có nhãn "Tên:", "SĐT:") rồi tự tách tên · SĐT · địa chỉ, đồng
+thời đoán luôn tỉnh/thành và quận/huyện. SĐT dạng `+84`, `84…`, có dấu chấm hay khoảng
+trắng đều được chuẩn hoá về `0…`.
+
+## Máy quét mã vạch ở POS
+
+Máy quét mã vạch hoạt động như bàn phím: chĩa vào sản phẩm, máy gõ mã rồi Enter — POS
+tự thêm đúng SKU vào giỏ. Cần khai **barcode** cho biến thể trong màn hình Sản phẩm.
 
 ## Luồng tồn kho
 
@@ -125,9 +198,23 @@ x-webhook-secret: <ORDER_WEBHOOK_SECRET>
 Gọi lại cùng `ma_don_san` sẽ trả về đơn cũ (`"trung": true`) chứ không tạo đơn mới,
 nên website retry thoải mái. SKU chưa có trong danh mục thì trả lỗi 400 kèm tên SKU.
 
+## Kiểm thử
+
+```bash
+npm test      # kiểm tra bộ tách địa chỉ, parse số/ngày, khớp đối soát COD
+npm run build # kiểm tra toàn bộ kiểu dữ liệu + build
+```
+
+Phần logic kho và phân quyền được kiểm bằng SQL trực tiếp trên Postgres (nhập kho →
+bán → huỷ → chuyển kho → kiểm kho, chặn bán quá tồn, chặn staff đọc giá vốn, chặn tự
+nâng quyền).
+
 ## Chưa có trong bản này
 
-- Nối API trực tiếp với Shopee/TikTok (hiện đi qua file Excel).
-- Nối API hãng vận chuyển để đẩy đơn và lấy trạng thái tự động (hiện nhập mã vận đơn tay).
+- Nối API trực tiếp với Shopee/TikTok. Cần đăng ký app trên Open Platform của từng sàn
+  (partner ID + OAuth), là việc bạn phải làm trước ở phía sàn. Hiện đi qua file Excel.
+- Nối GHN / Viettel Post / J&T. GHN yêu cầu mã số quận/phường theo bảng riêng của họ
+  nên cần đối chiếu dữ liệu trước; hiện chỉ có GHTK.
 - Chương trình khuyến mãi/voucher tự động, tích điểm.
 - Kế toán công nợ nhà cung cấp.
+- Ca làm việc / chốt ca cho từng nhân viên POS.

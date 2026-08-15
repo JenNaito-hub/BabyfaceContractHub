@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { KenhBadge, ThanhToanBadge, TrangThaiBadge } from "@/components/sales/Bits";
 import { createClient } from "@/lib/supabase/client";
 import { formatNgayGio, formatVND, tienDongHang } from "@/lib/sales/calc";
+import { TINH_THANH } from "@/lib/sales/address";
 import {
   DON_VI_VAN_CHUYEN,
   THANH_TOAN_LABEL,
@@ -43,6 +44,7 @@ export default function OrderDetailClient({
 }) {
   const router = useRouter();
   const [loi, setLoi] = useState<string | null>(null);
+  const [tinNhan, setTinNhan] = useState<string | null>(null);
   const [dangLuu, setDangLuu] = useState(false);
   const [q, setQ] = useState("");
 
@@ -50,6 +52,9 @@ export default function OrderDetailClient({
     khach_ten: order.khach_ten ?? "",
     khach_sdt: order.khach_sdt ?? "",
     dia_chi: order.dia_chi ?? "",
+    tinh: order.tinh ?? "",
+    quan: order.quan ?? "",
+    phuong: order.phuong ?? "",
     don_vi_van_chuyen: order.don_vi_van_chuyen ?? "",
     ma_van_don: order.ma_van_don ?? "",
     phi_ship: order.phi_ship,
@@ -114,6 +119,9 @@ export default function OrderDetailClient({
           khach_ten: form.khach_ten || null,
           khach_sdt: form.khach_sdt || null,
           dia_chi: form.dia_chi || null,
+          tinh: form.tinh || null,
+          quan: form.quan || null,
+          phuong: form.phuong || null,
           don_vi_van_chuyen: form.don_vi_van_chuyen || null,
           ma_van_don: form.ma_van_don || null,
           phi_ship: form.phi_ship,
@@ -148,6 +156,33 @@ export default function OrderDetailClient({
   async function xoaHang(item: OrderItem) {
     const supabase = createClient();
     await chay(() => supabase.from("order_items").delete().eq("id", item.id));
+  }
+
+  /** Đẩy đơn sang GHTK — server route giữ token, client chỉ nhận kết quả. */
+  async function daySangGhtk() {
+    setDangLuu(true);
+    setLoi(null);
+    setTinNhan(null);
+    try {
+      const res = await fetch("/api/shipping/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const json = (await res.json()) as { error?: string; ma_van_don?: string; phi_ship?: number };
+      if (!res.ok) {
+        setLoi(json.error ?? "Không tạo được vận đơn");
+      } else {
+        setTinNhan(
+          `Đã tạo vận đơn GHTK ${json.ma_van_don}` +
+            (json.phi_ship ? ` · phí ${formatVND(json.phi_ship)}` : ""),
+        );
+        router.refresh();
+      }
+    } catch (e) {
+      setLoi((e as Error).message);
+    }
+    setDangLuu(false);
   }
 
   async function xoaDon() {
@@ -189,8 +224,17 @@ export default function OrderDetailClient({
               </option>
             ))}
           </select>
-          <button className="btn-ghost" onClick={() => window.print()}>
-            In
+          <button
+            className="btn-ghost"
+            onClick={() => window.open(`/print/orders?ids=${order.id}&kieu=phieu`, "_blank")}
+          >
+            In phiếu giao
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={() => window.open(`/print/orders?ids=${order.id}&kieu=hoadon`, "_blank")}
+          >
+            In hoá đơn
           </button>
           {isManager && (
             <button className="btn-danger" onClick={xoaDon} disabled={dangLuu}>
@@ -201,6 +245,9 @@ export default function OrderDetailClient({
       </div>
 
       {loi && <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">{loi}</p>}
+      {tinNhan && (
+        <p className="rounded-lg bg-lime/25 px-3 py-2 text-sm font-semibold">{tinNhan}</p>
+      )}
 
       {khoa && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -347,6 +394,36 @@ export default function OrderDetailClient({
                 />
               </div>
               <div>
+                <label className="label">Tỉnh / Thành</label>
+                <input
+                  className="input"
+                  list="ds-tinh-detail"
+                  value={form.tinh}
+                  onChange={(e) => setForm({ ...form, tinh: e.target.value })}
+                />
+                <datalist id="ds-tinh-detail">
+                  {TINH_THANH.map((t) => (
+                    <option key={t.ten} value={t.ten} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="label">Quận / Huyện</label>
+                <input
+                  className="input"
+                  value={form.quan}
+                  onChange={(e) => setForm({ ...form, quan: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Phường / Xã</label>
+                <input
+                  className="input"
+                  value={form.phuong}
+                  onChange={(e) => setForm({ ...form, phuong: e.target.value })}
+                />
+              </div>
+              <div>
                 <label className="label">Đơn vị vận chuyển</label>
                 <select
                   className="input"
@@ -463,6 +540,47 @@ export default function OrderDetailClient({
                 ? `Đã trừ kho tại ${store?.ten ?? "—"}`
                 : "Chưa trừ kho — xác nhận đơn để trừ"}
             </p>
+          </div>
+
+          <div className="card text-sm">
+            <h2 className="mb-2 font-display font-extrabold">Vận chuyển</h2>
+            {order.ma_van_don ? (
+              <>
+                <p className="font-mono text-base font-extrabold">{order.ma_van_don}</p>
+                <p className="text-dark/60">{order.don_vi_van_chuyen ?? "—"}</p>
+                {order.trang_thai_ship && (
+                  <p className="mt-1">
+                    {order.trang_thai_ship}
+                    {order.ship_cap_nhat_luc && (
+                      <span className="block text-xs text-dark/50">
+                        cập nhật {formatNgayGio(order.ship_cap_nhat_luc)}
+                      </span>
+                    )}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-dark/60">Chưa có vận đơn.</p>
+                <button className="btn-dark mt-2 w-full" onClick={daySangGhtk} disabled={dangLuu}>
+                  {dangLuu ? "Đang gửi…" : "Đẩy sang GHTK"}
+                </button>
+                <p className="mt-1 text-xs text-dark/50">
+                  Cần tỉnh/quận của khách và địa chỉ + SĐT của cửa hàng.
+                </p>
+              </>
+            )}
+
+            {order.thanh_toan === "cod" && (
+              <p className="mt-2 border-t border-dark/10 pt-2">
+                Thu hộ: <strong>{formatVND(order.tong_tien)}</strong>
+                {order.cod_da_thu !== null && (
+                  <span className="block text-xs text-dark/50">
+                    Đã đối soát {formatVND(order.cod_da_thu)}
+                  </span>
+                )}
+              </p>
+            )}
           </div>
         </div>
       </div>

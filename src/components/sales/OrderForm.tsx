@@ -10,7 +10,7 @@ import {
   THANH_TOAN_LABEL,
   THANH_TOAN_LIST,
 } from "@/lib/sales/constants";
-import { tachDiaChi } from "@/lib/sales/address";
+import { tachDiaChi, TINH_THANH } from "@/lib/sales/address";
 import type {
   CartLine,
   InventoryRow,
@@ -47,6 +47,9 @@ export default function OrderForm({
   const [khachTen, setKhachTen] = useState("");
   const [khachSdt, setKhachSdt] = useState("");
   const [diaChi, setDiaChi] = useState("");
+  const [tinh, setTinh] = useState("");
+  const [quan, setQuan] = useState("");
+  const [phuong, setPhuong] = useState("");
   const [q, setQ] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [phiShip, setPhiShip] = useState(0);
@@ -111,6 +114,8 @@ export default function OrderForm({
     if (t.ho_ten) setKhachTen(t.ho_ten);
     if (t.sdt) setKhachSdt(t.sdt);
     if (t.dia_chi) setDiaChi(t.dia_chi);
+    if (t.tinh) setTinh(t.tinh);
+    if (t.quan) setQuan(t.quan);
   }
 
   async function luu() {
@@ -129,6 +134,9 @@ export default function OrderForm({
         khach_ten: khachTen,
         khach_sdt: chuanHoaSdt(khachSdt),
         dia_chi: diaChi,
+        tinh,
+        quan,
+        phuong,
         thanh_toan: thanhToan,
         giam_gia: giamGia,
         phi_ship: phiShip,
@@ -208,6 +216,37 @@ export default function OrderForm({
       <div>
         <label className="label">Địa chỉ giao</label>
         <input className="input" value={diaChi} onChange={(e) => setDiaChi(e.target.value)} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <label className="label">Tỉnh / Thành</label>
+          <input
+            className="input"
+            list="ds-tinh"
+            value={tinh}
+            onChange={(e) => setTinh(e.target.value)}
+            placeholder="TP. Hồ Chí Minh"
+          />
+          <datalist id="ds-tinh">
+            {TINH_THANH.map((t) => (
+              <option key={t.ten} value={t.ten} />
+            ))}
+          </datalist>
+        </div>
+        <div>
+          <label className="label">Quận / Huyện</label>
+          <input
+            className="input"
+            value={quan}
+            onChange={(e) => setQuan(e.target.value)}
+            placeholder="Quận 1"
+          />
+        </div>
+        <div>
+          <label className="label">Phường / Xã</label>
+          <input className="input" value={phuong} onChange={(e) => setPhuong(e.target.value)} />
+        </div>
       </div>
 
       <div>
