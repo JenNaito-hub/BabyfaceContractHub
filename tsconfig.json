@@ -18,6 +18,9 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx", "*.ts", ".next/types/**/*.ts"],
+  // aescentic-os là monorepo riêng, có tsconfig và path alias riêng.
+  // Không loại trừ ở đây thì build của app bán hàng sẽ đỏ vì không phân giải
+  // được `@aescentic/*`.
+  "exclude": ["node_modules", "aescentic-os", "scripts"]
 }

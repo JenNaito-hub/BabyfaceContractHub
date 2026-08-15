@@ -30,6 +30,15 @@ import { MockPosProvider } from "@aescentic/integrations";
 const URL = process.env.DATABASE_URL;
 let db: Db;
 
+// Bộ test này bỏ qua khi không có DATABASE_URL. Im lặng bỏ qua là nguy hiểm —
+// CI sẽ xanh mà chẳng kiểm gì. Nên hét lên cho người chạy biết.
+if (!URL) {
+  console.warn(
+    "\n⚠  BỎ QUA 22 test tích hợp: chưa đặt DATABASE_URL.\n" +
+      "   Chúng chỉ chạy trên PostgreSQL thật. Xem aescentic-os/README.md.\n",
+  );
+}
+
 describe("Phase 0 foundation", { skip: URL ? false : "Chưa đặt DATABASE_URL" }, () => {
   before(async () => {
     await chayMigrations(URL);
