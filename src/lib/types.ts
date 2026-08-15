@@ -21,6 +21,10 @@ export type Talent = {
   instagram: string | null;
   ghi_chu: string | null;
   status: TalentStatus;
+  is_blacklisted: boolean;
+  ly_do_blacklist: string | null;
+  blacklisted_by: string | null;
+  blacklisted_at: string | null;
   created_by: string | null;
   created_at: string;
 };
@@ -39,6 +43,9 @@ export type Job = {
   ten_job: string;
   khach_hang: string | null;
   ngay_shooting: string | null;
+  ngay_bat_dau: string | null; // 'YYYY-MM-DD' — dùng cho lịch & chống trùng
+  ngay_ket_thuc: string | null; // 'YYYY-MM-DD' — job nhiều ngày
+  call_time: string | null;
   dia_diem: string | null;
   pm: string | null;
   created_at: string;
@@ -46,6 +53,10 @@ export type Job = {
 
 export type KetQua = "Đậu" | "Không đậu";
 export type CoOt = "Có" | "Không";
+export type TrangThaiTT = "Chưa trả" | "Đã trả";
+export type PhuongThucTT = "Tiền mặt" | "Chuyển khoản" | "Ví điện tử";
+
+export const PHUONG_THUC_TT: PhuongThucTT[] = ["Tiền mặt", "Chuyển khoản", "Ví điện tử"];
 
 export type Casting = {
   id: string;
@@ -57,6 +68,37 @@ export type Casting = {
   co_ot: CoOt;
   chi_phi_ot: number;
   ghi_chu: string | null;
+  trang_thai_tt: TrangThaiTT;
+  ngay_thanh_toan: string | null;
+  phuong_thuc_tt: PhuongThucTT | null;
+  khau_tru_thue: number;
+  paid_by: string | null;
+  created_at: string;
+};
+
+export type DeXuat = "Nên dùng lại" | "Cân nhắc" | "Không dùng lại";
+
+export const DE_XUAT: DeXuat[] = ["Nên dùng lại", "Cân nhắc", "Không dùng lại"];
+
+export type TalentRating = {
+  id: string;
+  casting_id: string;
+  talent_id: string;
+  job_id: string;
+  diem: number; // 1..5
+  de_xuat: DeXuat;
+  ghi_chu: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type AuditLog = {
+  id: number;
+  actor_id: string | null;
+  table_name: string;
+  record_id: string | null;
+  action: "INSERT" | "UPDATE" | "DELETE";
+  changed: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -65,6 +107,11 @@ export type CastingWithTalent = Casting & {
 };
 
 export type CastingWithJob = Casting & {
+  job: Job | null;
+};
+
+export type CastingFull = Casting & {
+  talent: Pick<Talent, "id" | "ho_ten" | "status"> | null;
   job: Job | null;
 };
 

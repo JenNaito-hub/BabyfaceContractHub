@@ -7,8 +7,11 @@ import type { UserRole } from "@/lib/types";
 const LINKS = [
   { href: "/talent", label: "Dashboard", exact: true },
   { href: "/talent/jobs", label: "Jobs" },
+  { href: "/talent/lich", label: "Lịch" },
   { href: "/talent/directory", label: "Talent" },
+  { href: "/talent/thanh-toan", label: "Thanh toán" },
   { href: "/talent/approvals", label: "Duyệt", managerOnly: true },
+  { href: "/talent/audit", label: "Audit", managerOnly: true },
 ];
 
 export default function NavBar({
@@ -40,7 +43,7 @@ export default function NavBar({
           </span>
         </Link>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex flex-wrap items-center gap-1">
           {LINKS.filter((l) => !l.managerOnly || isManager).map((l) => (
             <Link
               key={l.href}

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   computeJobBreakdown,
   computeMonthlyStats,
+  computePaymentStats,
   currentThang,
   formatThang,
   formatVND,
@@ -45,6 +46,7 @@ export default function DashboardClient({
     () => computeJobBreakdown(monthJobs, monthCastings),
     [monthJobs, monthCastings],
   );
+  const payment = useMemo(() => computePaymentStats(monthCastings), [monthCastings]);
 
   const barData = breakdown.map((b) => ({ label: b.job.ten_job, value: b.tongThanhToan }));
   const donutData = breakdown.map((b) => ({ label: b.job.ten_job, value: b.luotCasting }));
@@ -84,6 +86,13 @@ export default function DashboardClient({
         <Stat label="Tổng OT" value={formatVND(stats.tongOt)} />
         <Stat label="Tổng thanh toán" value={formatVND(stats.tongThanhToan)} accent />
         <Stat label="Số job" value={monthJobs.length} />
+        <Stat label="Thuế TNCN khấu trừ" value={formatVND(payment.tongThue)} />
+        <Stat label="Đã trả talent" value={formatVND(payment.daTraNet)} />
+        <Stat
+          label={`Còn phải trả (${payment.soDongChuaTra} dòng)`}
+          value={formatVND(payment.conNoNet)}
+          accent={payment.conNoNet > 0}
+        />
       </div>
 
       <div className="mb-5 grid gap-4 lg:grid-cols-2">

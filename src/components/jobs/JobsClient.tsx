@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { formatThang } from "@/lib/calculations";
+import { formatNgay, formatThang } from "@/lib/calculations";
 import Modal from "@/components/Modal";
 import type { Job } from "@/lib/types";
 
@@ -94,7 +94,16 @@ export default function JobsClient({
                   </div>
                   <div className="mt-1 space-y-0.5 text-sm text-dark/60">
                     {j.khach_hang && <div>KH: {j.khach_hang}</div>}
-                    {j.ngay_shooting && <div>Ngày: {j.ngay_shooting}</div>}
+                    {j.ngay_bat_dau ? (
+                      <div>
+                        Ngày: {formatNgay(j.ngay_bat_dau)}
+                        {j.ngay_ket_thuc && j.ngay_ket_thuc !== j.ngay_bat_dau
+                          ? ` → ${formatNgay(j.ngay_ket_thuc)}`
+                          : ""}
+                      </div>
+                    ) : (
+                      j.ngay_shooting && <div>Ngày: {j.ngay_shooting}</div>
+                    )}
                     {j.dia_diem && <div>Nơi: {j.dia_diem}</div>}
                     {j.pm && <div>PM: {j.pm}</div>}
                   </div>
@@ -146,6 +155,9 @@ function JobModal({
     thang: job?.thang ?? defaultThang(),
     ten_job: job?.ten_job ?? "",
     khach_hang: job?.khach_hang ?? "",
+    ngay_bat_dau: job?.ngay_bat_dau ?? "",
+    ngay_ket_thuc: job?.ngay_ket_thuc ?? "",
+    call_time: job?.call_time ?? "",
     ngay_shooting: job?.ngay_shooting ?? "",
     dia_diem: job?.dia_diem ?? "",
     pm: job?.pm ?? "",
@@ -163,6 +175,10 @@ function JobModal({
       setError("Tên job và tháng là bắt buộc.");
       return;
     }
+    if (form.ngay_ket_thuc && form.ngay_bat_dau && form.ngay_ket_thuc < form.ngay_bat_dau) {
+      setError("Ngày kết thúc phải sau ngày bắt đầu.");
+      return;
+    }
     setSaving(true);
     setError(null);
     const supabase = createClient();
@@ -170,6 +186,9 @@ function JobModal({
       thang: form.thang,
       ten_job: form.ten_job.trim(),
       khach_hang: form.khach_hang.trim() || null,
+      ngay_bat_dau: form.ngay_bat_dau || null,
+      ngay_ket_thuc: form.ngay_ket_thuc || null,
+      call_time: form.call_time.trim() || null,
       ngay_shooting: form.ngay_shooting.trim() || null,
       dia_diem: form.dia_diem.trim() || null,
       pm: form.pm.trim() || null,
@@ -227,9 +246,38 @@ function JobModal({
             <input type="month" className="input" value={form.thang} onChange={(e) => set("thang", e.target.value)} />
           </div>
           <div>
-            <label className="label">Ngày shooting</label>
-            <input className="input" value={form.ngay_shooting} onChange={(e) => set("ngay_shooting", e.target.value)} placeholder="12/07 hoặc 12-14/07" />
+            <label className="label">Call time</label>
+            <input className="input" value={form.call_time} onChange={(e) => set("call_time", e.target.value)} placeholder="07:00" />
           </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Ngày bắt đầu</label>
+            <input
+              type="date"
+              className="input"
+              value={form.ngay_bat_dau}
+              onChange={(e) => set("ngay_bat_dau", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Ngày kết thúc</label>
+            <input
+              type="date"
+              className="input"
+              value={form.ngay_ket_thuc}
+              onChange={(e) => set("ngay_ket_thuc", e.target.value)}
+              placeholder="nếu job nhiều ngày"
+            />
+          </div>
+        </div>
+        <p className="-mt-2 text-xs text-dark/50">
+          Ngày bắt đầu/kết thúc dùng cho <b>Lịch</b> và cảnh báo trùng lịch talent. Job 1 ngày chỉ
+          cần điền ngày bắt đầu.
+        </p>
+        <div>
+          <label className="label">Ghi chú ngày (hiển thị tự do)</label>
+          <input className="input" value={form.ngay_shooting} onChange={(e) => set("ngay_shooting", e.target.value)} placeholder="12/07 hoặc 12-14/07" />
         </div>
         <div>
           <label className="label">Tên job *</label>

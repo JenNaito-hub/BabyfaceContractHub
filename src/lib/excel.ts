@@ -1,10 +1,12 @@
 import * as XLSX from "xlsx";
-import type { Casting, Job } from "./types";
+import type { Casting, CastingFull, Job } from "./types";
 import {
   castingPayout,
   computeJobBreakdown,
   computeMonthlyStats,
+  computePaymentStats,
   formatThang,
+  netPayout,
 } from "./calculations";
 
 /**
@@ -74,4 +76,60 @@ export function exportMonthToExcel(
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailRows), "Chi tiet casting");
 
   XLSX.writeFile(wb, `bao-cao-${thang}.xlsx`);
+}
+
+/**
+ * Xuất bảng thanh toán talent ra .xlsx — 2 sheet: Tổng hợp + Chi tiết.
+ * `thang` chỉ dùng để đặt tên file ('all' = tất cả tháng).
+ */
+export function exportPaymentsToExcel(thang: string, rows: CastingFull[]) {
+  const stats = computePaymentStats(rows);
+  const wb = XLSX.utils.book_new();
+
+  const summary = [
+    ["Bảng thanh toán talent", thang === "all" ? "Tất cả tháng" : formatThang(thang)],
+    [],
+    ["Số khoản chi trả", stats.soDong],
+    ["Tổng chi trả (gộp)", stats.tongGross],
+    ["Thuế TNCN khấu trừ", stats.tongThue],
+    ["Tổng thực nhận", stats.tongNet],
+    ["Đã trả", stats.daTraNet],
+    ["Còn phải trả", stats.conNoNet],
+    ["Số dòng chưa trả", stats.soDongChuaTra],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), "Tong hop");
+
+  const detail = [
+    [
+      "Tháng",
+      "Job",
+      "Talent",
+      "Vai",
+      "Tiền HĐ",
+      "Chi phí OT",
+      "Tổng gộp",
+      "Thuế TNCN",
+      "Thực nhận",
+      "Trạng thái",
+      "Hình thức",
+      "Ngày thanh toán",
+    ],
+    ...rows.map((r) => [
+      r.job?.thang ?? "",
+      r.job?.ten_job ?? "",
+      r.talent?.ho_ten ?? "",
+      r.vai ?? "",
+      r.so_tien_hd,
+      r.chi_phi_ot,
+      castingPayout(r),
+      r.khau_tru_thue ?? 0,
+      netPayout(r),
+      r.trang_thai_tt,
+      r.phuong_thuc_tt ?? "",
+      r.ngay_thanh_toan ?? "",
+    ]),
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detail), "Chi tiet");
+
+  XLSX.writeFile(wb, `thanh-toan-talent-${thang}.xlsx`);
 }

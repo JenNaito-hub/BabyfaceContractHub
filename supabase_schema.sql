@@ -183,3 +183,159 @@ create trigger on_auth_user_created
 --   update public.profiles set role='admin'
 --   where id = (select id from auth.users where email = 'jen.aescentic@gmail.com');
 -- ============================================================
+
+-- ============================================================
+-- v2 — Tính năng đặc thù talent/casting (phần mềm bán lẻ như
+-- nhanh.vn không có): lịch & chống trùng lịch, thanh toán cát-xê
+-- + thuế TNCN, đánh giá/blacklist talent, audit log.
+-- Idempotent: chạy lại nhiều lần không lỗi.
+-- ============================================================
+
+-- ---------- v2.1 talents: blacklist ----------
+alter table public.talents add column if not exists is_blacklisted boolean not null default false;
+alter table public.talents add column if not exists ly_do_blacklist text;
+alter table public.talents add column if not exists blacklisted_by uuid references auth.users(id);
+alter table public.talents add column if not exists blacklisted_at timestamptz;
+
+-- ---------- v2.2 jobs: ngày shooting dạng date (cho lịch) ----------
+-- Giữ nguyên cột text `ngay_shooting` (hiển thị tự do, vd '12-14/07').
+-- Thêm 2 cột date để dựng lịch & phát hiện trùng lịch.
+alter table public.jobs add column if not exists ngay_bat_dau date;
+alter table public.jobs add column if not exists ngay_ket_thuc date;
+alter table public.jobs add column if not exists call_time text;
+create index if not exists jobs_ngay_bat_dau_idx on public.jobs(ngay_bat_dau);
+
+-- Backfill best-effort từ text cũ: chỉ nhận dạng ISO 'YYYY-MM-DD'.
+-- Các định dạng tự do khác ('12/07', '12-14/07') để trống, nhập lại bằng tay.
+update public.jobs
+   set ngay_bat_dau = ngay_shooting::date
+ where ngay_bat_dau is null
+   and ngay_shooting ~ '^\d{4}-\d{2}-\d{2}$';
+
+-- ---------- v2.3 castings: thanh toán cát-xê + thuế TNCN ----------
+alter table public.castings add column if not exists trang_thai_tt text not null default 'Chưa trả';
+alter table public.castings add column if not exists ngay_thanh_toan date;
+alter table public.castings add column if not exists phuong_thuc_tt text;
+alter table public.castings add column if not exists khau_tru_thue bigint not null default 0;
+alter table public.castings add column if not exists paid_by uuid references auth.users(id);
+
+do $$ begin
+  alter table public.castings
+    add constraint castings_trang_thai_tt_check
+    check (trang_thai_tt in ('Chưa trả','Đã trả'));
+exception when duplicate_object then null; end $$;
+
+create index if not exists castings_trang_thai_tt_idx on public.castings(trang_thai_tt);
+
+-- ---------- v2.4 talent_ratings: đánh giá sau job ----------
+create table if not exists public.talent_ratings (
+  id uuid primary key default gen_random_uuid(),
+  casting_id uuid not null unique references public.castings(id) on delete cascade,
+  talent_id uuid not null references public.talents(id) on delete cascade,
+  job_id uuid not null references public.jobs(id) on delete cascade,
+  diem smallint not null check (diem between 1 and 5),
+  de_xuat text not null default 'Nên dùng lại'
+    check (de_xuat in ('Nên dùng lại','Cân nhắc','Không dùng lại')),
+  ghi_chu text,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+create index if not exists talent_ratings_talent_idx on public.talent_ratings(talent_id);
+create index if not exists talent_ratings_job_idx on public.talent_ratings(job_id);
+
+-- ---------- v2.5 audit_logs ----------
+create table if not exists public.audit_logs (
+  id bigint generated always as identity primary key,
+  actor_id uuid,
+  table_name text not null,
+  record_id text,
+  action text not null,
+  changed jsonb,
+  created_at timestamptz default now()
+);
+create index if not exists audit_logs_created_idx on public.audit_logs(created_at desc);
+create index if not exists audit_logs_table_idx on public.audit_logs(table_name);
+
+-- Trigger ghi log. SECURITY DEFINER nên ghi được kể cả khi bảng bật RLS.
+-- QUAN TRỌNG: với talent_contacts chỉ log TÊN CỘT thay đổi, KHÔNG log giá trị
+-- (tránh rò SĐT vào bảng log).
+create or replace function public.log_audit()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  rec_id text;
+  diff jsonb := '{}'::jsonb;
+  k text;
+  old_j jsonb;
+  new_j jsonb;
+  mask boolean := (tg_table_name = 'talent_contacts');
+begin
+  if tg_op = 'DELETE' then
+    old_j := to_jsonb(old);
+    rec_id := coalesce(old_j->>'id', old_j->>'talent_id');
+    diff := case when mask then '{"masked": true}'::jsonb else old_j end;
+  elsif tg_op = 'INSERT' then
+    new_j := to_jsonb(new);
+    rec_id := coalesce(new_j->>'id', new_j->>'talent_id');
+    diff := case when mask then '{"masked": true}'::jsonb else new_j end;
+  else
+    old_j := to_jsonb(old);
+    new_j := to_jsonb(new);
+    rec_id := coalesce(new_j->>'id', new_j->>'talent_id');
+    for k in select jsonb_object_keys(new_j) loop
+      if (new_j->k) is distinct from (old_j->k) and k <> 'updated_at' then
+        if mask then
+          diff := diff || jsonb_build_object(k, 'đã thay đổi');
+        else
+          diff := diff || jsonb_build_object(k, jsonb_build_array(old_j->k, new_j->k));
+        end if;
+      end if;
+    end loop;
+    if diff = '{}'::jsonb then
+      return new;   -- không có gì đổi thật -> không ghi log
+    end if;
+  end if;
+
+  insert into public.audit_logs (actor_id, table_name, record_id, action, changed)
+  values (auth.uid(), tg_table_name, rec_id, tg_op, diff);
+
+  return case when tg_op = 'DELETE' then old else new end;
+end $$;
+
+drop trigger if exists audit_talents on public.talents;
+create trigger audit_talents after insert or update or delete on public.talents
+  for each row execute function public.log_audit();
+
+drop trigger if exists audit_castings on public.castings;
+create trigger audit_castings after insert or update or delete on public.castings
+  for each row execute function public.log_audit();
+
+drop trigger if exists audit_jobs on public.jobs;
+create trigger audit_jobs after insert or update or delete on public.jobs
+  for each row execute function public.log_audit();
+
+drop trigger if exists audit_talent_contacts on public.talent_contacts;
+create trigger audit_talent_contacts after insert or update or delete on public.talent_contacts
+  for each row execute function public.log_audit();
+
+-- ---------- v2.6 RLS cho bảng mới ----------
+alter table public.talent_ratings enable row level security;
+alter table public.audit_logs     enable row level security;
+
+-- ratings: authenticated đọc & thêm; sửa của mình hoặc manager; xoá manager
+drop policy if exists ratings_read on public.talent_ratings;
+create policy ratings_read on public.talent_ratings
+  for select using (auth.role() = 'authenticated');
+drop policy if exists ratings_insert on public.talent_ratings;
+create policy ratings_insert on public.talent_ratings
+  for insert with check (auth.role() = 'authenticated');
+drop policy if exists ratings_update on public.talent_ratings;
+create policy ratings_update on public.talent_ratings
+  for update using (created_by = auth.uid() or public.is_manager());
+drop policy if exists ratings_delete on public.talent_ratings;
+create policy ratings_delete on public.talent_ratings
+  for delete using (public.is_manager());
+
+-- audit_logs: CHỈ manager/admin đọc. Không ai ghi trực tiếp (chỉ trigger).
+drop policy if exists audit_manager_read on public.audit_logs;
+create policy audit_manager_read on public.audit_logs
+  for select using (public.is_manager());

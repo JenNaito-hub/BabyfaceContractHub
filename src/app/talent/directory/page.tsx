@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionProfile } from "@/lib/auth";
-import { isManagerRole, type Casting, type Talent } from "@/lib/types";
+import { computeRatingAggregates } from "@/lib/calculations";
+import { isManagerRole, type Casting, type Talent, type TalentRating } from "@/lib/types";
 import DirectoryClient, { type TalentAggregate } from "@/components/directory/DirectoryClient";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +11,12 @@ export default async function DirectoryPage() {
   const isManager = isManagerRole(session?.profile?.role);
   const supabase = await createClient();
 
-  const [{ data: talents }, { data: castings }] = await Promise.all([
+  const [{ data: talents }, { data: castings }, { data: ratings }] = await Promise.all([
     supabase.from("talents").select("*").order("created_at", { ascending: false }),
     supabase
       .from("castings")
       .select("talent_id, job_id, ket_qua, so_tien_hd, chi_phi_ot"),
+    supabase.from("talent_ratings").select("talent_id, diem"),
   ]);
 
   // Gộp số job + tổng tiền nhận theo talent
@@ -40,6 +42,9 @@ export default async function DirectoryPage() {
     <DirectoryClient
       talents={(talents ?? []) as Talent[]}
       aggregates={aggregates}
+      ratingAggregates={computeRatingAggregates(
+        (ratings ?? []) as Pick<TalentRating, "talent_id" | "diem">[],
+      )}
       isManager={isManager}
       currentUserId={session?.userId ?? null}
     />
