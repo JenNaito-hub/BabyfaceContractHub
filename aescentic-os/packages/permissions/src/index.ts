@@ -150,6 +150,22 @@ export function canTouchStore(decision: Decision, storeId: string): boolean {
   return false;
 }
 
+/** Đúng khi người dùng nắm quyền bao trùm mọi tài nguyên (ví dụ vai trò CEO). */
+export function laToanQuyen(principal: Principal): boolean {
+  return principal.permissions.some((p) => p.resource === "*" && p.action === "*");
+}
+
+/**
+ * Mô tả quyền hạn cho người đọc.
+ *
+ * Đếm thô sẽ nói dối: CEO được cấp đúng một dòng `*.*.all`, hiện ra thành
+ * "1 quyền" khiến người ta tưởng tài khoản bị mất quyền.
+ */
+export function moTaQuyen(principal: Principal): string {
+  if (laToanQuyen(principal)) return "toàn quyền";
+  return `${principal.permissions.length} quyền`;
+}
+
 /** Đúng khi bộ lọc chắc chắn không trả về bản ghi nào. */
 export function boLocRong(filter: DataFilter): boolean {
   if (filter.kind === "stores") return filter.storeIds.length === 0;

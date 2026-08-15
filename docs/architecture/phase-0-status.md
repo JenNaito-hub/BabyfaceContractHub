@@ -1,5 +1,8 @@
 # Phase 0 — trạng thái thật
 
+> **Đã cũ.** Tài liệu này chốt trạng thái Phase 0. Trạng thái hiện tại xem
+> `phase-1-status.md` — app bán hàng đã được gộp vào AESCENTIC OS.
+
 Cập nhật 2026-08-15. Tài liệu này nói chính xác cái gì chạy được và cái gì chưa,
 không làm tròn lên.
 

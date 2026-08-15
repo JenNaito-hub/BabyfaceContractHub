@@ -10,5 +10,8 @@ module.exports = {
     "@aescentic/events",
     "@aescentic/integrations",
     "@aescentic/shared",
+    "@aescentic/marketplace",
+    "@aescentic/sales",
+    "@aescentic/inventory",
   ],
 };

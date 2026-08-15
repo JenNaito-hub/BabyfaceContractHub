@@ -40,6 +40,21 @@
       ],
       "@aescentic/shared": [
         "packages/shared/src/index.ts"
+      ],
+      "@aescentic/marketplace": [
+        "packages/marketplace/src/index.ts"
+      ],
+      "@aescentic/sales": [
+        "modules/sales/src/index.ts"
+      ],
+      "@aescentic/sales/labels": [
+        "modules/sales/src/labels.ts"
+      ],
+      "@aescentic/inventory": [
+        "modules/inventory/src/index.ts"
+      ],
+      "@aescentic/inventory/labels": [
+        "modules/inventory/src/labels.ts"
       ]
     },
     "allowImportingTsExtensions": true

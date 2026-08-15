@@ -6,7 +6,6 @@ import {
   index,
   integer,
   jsonb,
-  pgSchema,
   primaryKey,
   text,
   timestamp,
@@ -14,7 +13,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const os = pgSchema("os");
+export { os } from "./schema.ts";
+import { os } from "./schema.ts";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -343,3 +343,4 @@ export const integrationSyncState = os.table("integration_sync_state", {
   consecutiveFailures: integer("consecutive_failures").notNull().default(0),
   updatedAt: updatedAt(),
 });
+export * from "./sales.ts";

@@ -68,7 +68,15 @@ describe("Phase 0 foundation", { skip: URL ? false : "Chưa đặt DATABASE_URL"
     assert.equal(sau[0]!.n, truoc[0]!.n);
   });
 
-  test("kho hàng bán do Nhanh.vn quản, OS không được ghi — chốt chặn rủi ro R1", async () => {
+  test("kho hàng bán theo đúng luật ai quản — chốt chặn rủi ro R1", async () => {
+    // Luật nằm ở `os.kho_ban_do_ai_quan()` (migration 0004), không phải hằng số
+    // chép tay ở nhiều nơi. Test hỏi cùng một nguồn mà seed hỏi.
+    const [luat] = await db.execute<{ kho_ban_do_ai_quan: string }>(
+      sql`select os.kho_ban_do_ai_quan()`,
+    );
+    const phaiLa = luat!.kho_ban_do_ai_quan;
+    assert.ok(phaiLa === "os" || phaiLa === "nhanh");
+
     const banHang = await db
       .select({ code: inventoryLocations.code, managedBy: inventoryLocations.managedBy })
       .from(inventoryLocations)
@@ -76,7 +84,7 @@ describe("Phase 0 foundation", { skip: URL ? false : "Chưa đặt DATABASE_URL"
 
     assert.ok(banHang.length > 0);
     for (const l of banHang) {
-      assert.equal(l.managedBy, "nhanh", `${l.code} phải do Nhanh.vn quản`);
+      assert.equal(l.managedBy, phaiLa, `${l.code} sai chủ quản`);
     }
 
     const tester = await db
@@ -84,6 +92,63 @@ describe("Phase 0 foundation", { skip: URL ? false : "Chưa đặt DATABASE_URL"
       .from(inventoryLocations)
       .where(eq(inventoryLocations.kind, "tester"));
     for (const l of tester) assert.equal(l.managedBy, "os");
+  });
+
+  test("Nhanh.vn đồng bộ thành công lần đầu thì kho bán tự đổi chủ và OS bị chặn ghi", async () => {
+    // Chạy trong transaction rồi rollback: không được để lại di chứng cho các
+    // test sau, vì nó lật chủ quản của toàn bộ kho hàng bán.
+    await db
+      .transaction(async (tx) => {
+        await tx.execute(sql`
+          insert into os.integration_sync_state (provider, resource)
+          values ('nhanh', 'test_doi_chu')
+          on conflict (provider, resource) do nothing`);
+        await tx.execute(sql`
+          update os.integration_sync_state set last_success_at = now()
+          where provider = 'nhanh' and resource = 'test_doi_chu'`);
+
+        const sau = await tx
+          .select({ managedBy: inventoryLocations.managedBy })
+          .from(inventoryLocations)
+          .where(eq(inventoryLocations.kind, "sellable"));
+        assert.ok(sau.length > 0);
+        for (const l of sau) assert.equal(l.managedBy, "nhanh", "phải tự chuyển sang Nhanh.vn");
+
+        const [ghi] = await tx.execute<{ n: number }>(sql`
+          select count(*)::int as n from os.audit_log
+          where event = 'inventory.ownership_changed'`);
+        assert.ok((ghi?.n ?? 0) > 0, "phải ghi nhật ký khi đổi chủ kho");
+
+        // Từ giờ OS ghi tồn vào kho bán là bị chặn.
+        const [dd] = await tx
+          .select({ id: inventoryLocations.id })
+          .from(inventoryLocations)
+          .where(eq(inventoryLocations.kind, "sellable"))
+          .limit(1);
+        const [s] = await tx.execute<{ id: string }>(sql`select id from os.skus limit 1`);
+        await assert.rejects(
+          () =>
+            tx.execute(
+              sql`select os.fn_apply_stock_move(${s!.id}::uuid, ${dd!.id}::uuid, 5, 'receipt', null, null, null)`,
+            ),
+          /Nhanh\.vn quản/,
+        );
+
+        throw new Error("ROLLBACK_CO_Y");
+      })
+      .catch((e: Error) => {
+        if (e.message !== "ROLLBACK_CO_Y") throw e;
+      });
+
+    // Đã rollback: mọi thứ trở lại như cũ.
+    const [luat] = await db.execute<{ kho_ban_do_ai_quan: string }>(
+      sql`select os.kho_ban_do_ai_quan()`,
+    );
+    const conLai = await db
+      .select({ managedBy: inventoryLocations.managedBy })
+      .from(inventoryLocations)
+      .where(eq(inventoryLocations.kind, "sellable"));
+    for (const l of conLai) assert.equal(l.managedBy, luat!.kho_ban_do_ai_quan);
   });
 
   describe("RBAC với dữ liệu thật", () => {
@@ -266,9 +331,18 @@ describe("Phase 0 foundation", { skip: URL ? false : "Chưa đặt DATABASE_URL"
         entityId: "AES-001-50",
       });
 
-      const chuaXuLy = await layEventChuaXuLy(db, 50);
+      // Lấy cả hàng chờ chứ không phải 50 cái đầu: bán hàng đẩy event vào đây
+      // liên tục mà chưa có worker nào rút ra, nên cửa sổ 50 không còn chứa cái
+      // vừa phát. Test phải kiểm đúng hợp đồng của hàm, không kiểm may rủi.
+      const chuaXuLy = await layEventChuaXuLy(db, 100_000);
       const cua_ta = chuaXuLy.find((e) => e.entityId === "AES-001-50");
       assert.ok(cua_ta, "event vừa phát phải nằm trong hàng chờ");
+      assert.ok(
+        chuaXuLy.every((e) => e.processedAt === null),
+        "hàng chờ không được lẫn event đã xử lý",
+      );
+      const thoiGian = chuaXuLy.map((e) => e.occurredAt.getTime());
+      assert.deepEqual(thoiGian, [...thoiGian].sort((a, b) => a - b), "phải cũ trước mới sau");
 
       await danhDauDaXuLy(db, cua_ta.id);
       const [sau] = await db.select().from(domainEvents).where(eq(domainEvents.id, cua_ta.id));
@@ -299,6 +373,38 @@ describe("Phase 0 foundation", { skip: URL ? false : "Chưa đặt DATABASE_URL"
       assert.equal(kq.ok, true);
       assert.match(kq.message, /giả lập|NHANH_ACCESS_TOKEN/);
     });
+  });
+
+  test("không vai trò nào được cấp quyền chồng mà thiếu quyền nền", async () => {
+    // `product.cost` là quyền CHỒNG LÊN `product.read`: cấp cái sau mà quên cái
+    // trước thì màn hình sản phẩm đóng, và quyền xem giá vốn thành vô dụng —
+    // im lặng, không báo lỗi, người dùng chỉ thấy "không đủ quyền".
+    const CHONG: [string, string, string][] = [
+      ["product", "cost", "read"],
+      ["inventory", "adjust", "read"],
+      ["inventory", "transfer", "read"],
+      ["order", "manage", "read"],
+      ["customer", "manage", "read"],
+    ];
+
+    const thieu: string[] = [];
+    for (const [taiNguyen, hanhDongChong, hanhDongNen] of CHONG) {
+      const rows = await db.execute<{ code: string }>(sql`
+        select r.code from os.roles r
+        where exists (
+          select 1 from os.role_permissions rp
+          join os.permissions p on p.id = rp.permission_id
+          where rp.role_id = r.id and p.resource = ${taiNguyen} and p.action = ${hanhDongChong})
+        and not exists (
+          select 1 from os.role_permissions rp
+          join os.permissions p on p.id = rp.permission_id
+          where rp.role_id = r.id and p.resource = ${taiNguyen} and p.action = ${hanhDongNen})`);
+      for (const r of rows) {
+        thieu.push(`${r.code}: có ${taiNguyen}.${hanhDongChong} nhưng thiếu ${taiNguyen}.${hanhDongNen}`);
+      }
+    }
+
+    assert.deepEqual(thieu, [], thieu.join(" | "));
   });
 
   test("requirePermission ném lỗi cho người không có quyền", async () => {

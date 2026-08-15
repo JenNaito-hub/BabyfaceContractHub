@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, users, type Db } from "@aescentic/database";
 import { docDevCookie, loadPrincipal, TEN_COOKIE } from "@aescentic/auth";
@@ -64,13 +65,24 @@ export function withAuth(
   };
 }
 
-/** Dùng trong server component: chưa đăng nhập hoặc không đủ quyền thì ném. */
+/**
+ * Dùng trong server component: bắt buộc đăng nhập + có quyền.
+ *
+ * Thiếu quyền thì đưa sang trang giải thích, KHÔNG ném lỗi. Ném lỗi ở server
+ * component sẽ ra trang "Something went wrong" kèm HTTP 500 — người dùng tưởng
+ * hệ thống hỏng, còn giám sát thì báo động nhầm. Thiếu quyền là chuyện bình
+ * thường, phải nói bằng tiếng người.
+ */
 export async function batBuocQuyen(
   permission: string,
 ): Promise<{ ctx: Ctx; decision: Decision }> {
   const ctx = await docPhien();
-  if (!ctx) throw new Error("CHUA_DANG_NHAP");
-  return { ctx, decision: requirePermission(ctx.principal, permission) };
+  if (!ctx) redirect("/login");
+
+  const decision = authorize(ctx.principal, permission);
+  if (!decision.allowed) redirect(`/khong-du-quyen?can=${encodeURIComponent(permission)}`);
+
+  return { ctx, decision };
 }
 
 export { authorize };

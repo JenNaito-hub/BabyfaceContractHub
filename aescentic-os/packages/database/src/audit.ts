@@ -55,3 +55,22 @@ export function chiTruongDoi<T extends Record<string, unknown>>(
   }
   return { previousValue: p, newValue: n, coDoi: Object.keys(n).length > 0 };
 }
+
+import { sql } from "drizzle-orm";
+
+/**
+ * Chạy một khối trong transaction, có đặt sẵn người thao tác.
+ *
+ * `os.actor_id` là GUC mà các trigger tồn kho đọc để ghi `created_by` vào sổ
+ * kho. Đặt bằng `set_config(..., true)` nên nó chỉ sống trong transaction này.
+ */
+export async function trongGiaoDich<T>(
+  db: Db,
+  actorUserId: string | null,
+  fn: (tx: Db) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('os.actor_id', ${actorUserId ?? ""}, true)`);
+    return fn(tx as unknown as Db);
+  });
+}

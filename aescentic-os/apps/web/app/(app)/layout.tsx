@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { TEN_COOKIE } from "@aescentic/auth";
-import { authorize } from "@aescentic/permissions";
+import { authorize, moTaQuyen } from "@aescentic/permissions";
 import { docPhien } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Menu dựng theo quyền thật, không hard-code theo tên vai trò
   const menu = [
     { href: "/", label: "Tổng quan", quyen: null },
+    { href: "/pos", label: "Bán hàng", quyen: "order.create" },
+    { href: "/orders", label: "Đơn hàng", quyen: "order.read" },
+    { href: "/products", label: "Sản phẩm", quyen: "product.read" },
+    { href: "/inventory", label: "Kho", quyen: "inventory.read" },
+    { href: "/customers", label: "Khách hàng", quyen: "customer.read" },
     { href: "/stores", label: "Cửa hàng", quyen: "store.read" },
     { href: "/admin/users", label: "Người dùng", quyen: "user.manage" },
     { href: "/admin/roles", label: "Phân quyền", quyen: "role.manage" },
@@ -54,7 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 {ctx.fullName ?? ctx.email}
               </div>
               <div className="font-mono text-[11px] text-muted">
-                {ctx.principal.permissions.length} quyền
+                {moTaQuyen(ctx.principal)}
               </div>
             </div>
             <form action={dangXuat}>

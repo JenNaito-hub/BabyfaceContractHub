@@ -124,8 +124,7 @@ export async function seed(db: Db): Promise<void> {
       name: `${c.name} — hàng bán`,
       storeId: idCuaHang.get(c.code)!,
       kind: "sellable",
-      // Kho bán là của Nhanh.vn: OS chỉ đọc, không được ghi (rủi ro R1)
-      managedBy: "nhanh",
+      // managedBy đặt bên dưới theo luật `os.kho_ban_do_ai_quan()`.
     });
     diaDiem.push({
       code: `${c.code}-TESTER`,
@@ -145,6 +144,14 @@ export async function seed(db: Db): Promise<void> {
   await db.insert(inventoryLocations).values(diaDiem).onConflictDoNothing({
     target: inventoryLocations.code,
   });
+
+  // Ai quản kho hàng bán là một LUẬT, không phải hằng số chép tay: chừng nào
+  // Nhanh.vn chưa đồng bộ lần nào thì OS tự quản để Jen còn bán được; ngay khi
+  // Nhanh.vn chạy thật, trigger ở migration 0004 đổi chủ và chặn OS ghi tiếp.
+  await db.execute(sql`
+    update os.inventory_locations
+    set managed_by = os.kho_ban_do_ai_quan()
+    where kind = 'sellable' and managed_by <> os.kho_ban_do_ai_quan()`);
 
   await db
     .insert(categories)

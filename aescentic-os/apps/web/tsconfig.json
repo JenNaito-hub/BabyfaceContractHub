@@ -1,25 +1,71 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "jsx": "preserve",
     "module": "esnext",
     "allowJs": true,
     "isolatedModules": true,
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@aescentic/database": ["../../packages/database/src/index.ts"],
-      "@aescentic/permissions": ["../../packages/permissions/src/index.ts"],
-      "@aescentic/auth": ["../../packages/auth/src/index.ts"],
-      "@aescentic/config": ["../../packages/config/src/index.ts"],
-      "@aescentic/events": ["../../packages/events/src/index.ts"],
-      "@aescentic/integrations": ["../../packages/integrations/src/index.ts"],
-      "@aescentic/shared": ["../../packages/shared/src/index.ts"]
+      "@/*": [
+        "./*"
+      ],
+      "@aescentic/database": [
+        "../../packages/database/src/index.ts"
+      ],
+      "@aescentic/permissions": [
+        "../../packages/permissions/src/index.ts"
+      ],
+      "@aescentic/auth": [
+        "../../packages/auth/src/index.ts"
+      ],
+      "@aescentic/config": [
+        "../../packages/config/src/index.ts"
+      ],
+      "@aescentic/events": [
+        "../../packages/events/src/index.ts"
+      ],
+      "@aescentic/integrations": [
+        "../../packages/integrations/src/index.ts"
+      ],
+      "@aescentic/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@aescentic/marketplace": [
+        "../../packages/marketplace/src/index.ts"
+      ],
+      "@aescentic/sales": [
+        "../../modules/sales/src/index.ts"
+      ],
+      "@aescentic/sales/labels": [
+        "../../modules/sales/src/labels.ts"
+      ],
+      "@aescentic/inventory": [
+        "../../modules/inventory/src/index.ts"
+      ],
+      "@aescentic/inventory/labels": [
+        "../../modules/inventory/src/labels.ts"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
