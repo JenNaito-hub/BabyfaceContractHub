@@ -150,8 +150,10 @@ export function buildShowreel(input: ShowreelInput): Project {
             size: tpl.caption.size,
             color: tpl.caption.color,
             background: tpl.caption.background,
-            delay: 0.2,
-            hold: Math.max(1, duration - 0.4),
+            // Hiện ngay từ khung đầu: thẻ tên là lý do tồn tại của showreel,
+            // trễ dù chỉ 0.2s cũng làm khung mở đầu trông như bị lỗi.
+            delay: 0,
+            hold: Math.max(1, duration - 0.2),
           }
         : undefined;
 
