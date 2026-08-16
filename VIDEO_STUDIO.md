@@ -146,7 +146,12 @@ như bình thường là có luôn `/video`.
    Hai biến `NEXT_PUBLIC_SUPABASE_*` vẫn giữ nguyên cho khu `/talent`.
    **Đừng** đặt tên biến Anthropic có prefix `NEXT_PUBLIC_` — làm vậy là lộ key ra client.
 
-3. **Deploy**, rồi mở `https://<domain>/video`.
+3. **Redeploy** — thêm biến xong phải deploy lại mới ăn, biến không tự áp vào bản đã build.
+4. Mở `https://<domain>/video` — đầu trang **Tổng quan** có bảng trạng thái báo key nào đã
+   nhận, key nào chưa. Đủ cả hai thì hiện “Đã bật đủ tính năng AI ✓”.
+
+> Key chỉ đọc ở server. Trang trạng thái chỉ trả về đúng/sai, **không bao giờ trả về giá trị
+> key** — kể cả một phần.
 
 ### Nghiệm thu trên domain thật
 

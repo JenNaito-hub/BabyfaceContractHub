@@ -34,11 +34,18 @@ const TOOLS = [
   },
 ];
 
+type KeyStatus = {
+  anthropic: boolean;
+  fal: boolean;
+  models: { image: string; video: string; imageToVideo: string };
+};
+
 export default function HomeClient() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [talents, setTalents] = useState<VideoTalent[]>([]);
   const [productions, setProductions] = useState<Production[]>([]);
   const [scripts, setScripts] = useState<ScriptDoc[]>([]);
+  const [status, setStatus] = useState<KeyStatus | null>(null);
 
   useEffect(() => {
     void Promise.all([
@@ -52,6 +59,11 @@ export default function HomeClient() {
       setProductions(pr);
       setScripts(s.sort((a, b) => b.createdAt - a.createdAt));
     });
+
+    void fetch("/api/video/status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setStatus)
+      .catch(() => setStatus(null));
   }, []);
 
   const activeProductions = productions.filter((p) => p.status !== "done").length;
@@ -69,6 +81,41 @@ export default function HomeClient() {
         <Stat label="Dự án đang chạy" value={activeProductions} href="/video/production" />
         <Stat label="Kịch bản" value={scripts.length} href="/video/script" />
       </div>
+
+      {status && (!status.anthropic || !status.fal) && (
+        <div className="card mb-6 border-warning/30">
+          <h2 className="font-display text-base font-bold">Tính năng AI chưa bật hết</h2>
+          <p className="mt-1 text-sm text-dark/60">
+            Phần dựng video, showreel và quản lý sản xuất vẫn dùng bình thường. Hai mục dưới
+            đây cần key đặt trong Vercel → Settings → Environment Variables, rồi{" "}
+            <strong>Redeploy</strong> mới ăn.
+          </p>
+          <ul className="mt-3 space-y-2">
+            <KeyRow
+              on={status.anthropic}
+              name="ANTHROPIC_API_KEY"
+              what="Kịch bản AI đọc được ảnh tham chiếu"
+              fallback="Đang chạy bản offline: ra shotlist theo template, không đọc ảnh"
+            />
+            <KeyRow
+              on={status.fal}
+              name="FAL_KEY"
+              what="Sinh ảnh / video bằng AI trong Editor"
+              fallback="Nút “Sinh media bằng AI” báo chưa cấu hình"
+            />
+          </ul>
+        </div>
+      )}
+
+      {status?.anthropic && status?.fal && (
+        <div className="card mb-6 border-lime">
+          <h2 className="font-display text-base font-bold">Đã bật đủ tính năng AI ✓</h2>
+          <p className="mt-1 text-sm text-dark/60">
+            Kịch bản AI dùng Claude, sinh media dùng fal.ai ({status.models.image} ·{" "}
+            {status.models.video}).
+          </p>
+        </div>
+      )}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2">
         {TOOLS.map((t) => (
@@ -140,6 +187,33 @@ export default function HomeClient() {
         )}
       </section>
     </>
+  );
+}
+
+function KeyRow({
+  on,
+  name,
+  what,
+  fallback,
+}: {
+  on: boolean;
+  name: string;
+  what: string;
+  fallback: string;
+}) {
+  return (
+    <li className="flex items-start gap-3">
+      <span
+        className={`badge mt-0.5 shrink-0 ${on ? "bg-lime text-dark" : "bg-dark/10 text-dark/60"}`}
+      >
+        {on ? "đã có" : "chưa có"}
+      </span>
+      <span className="min-w-0 text-sm">
+        <code className="rounded bg-dark/8 px-1 text-xs">{name}</code>
+        <span className="block text-dark/70">{what}</span>
+        {!on && <span className="block text-xs text-dark/45">{fallback}</span>}
+      </span>
+    </li>
   );
 }
 
