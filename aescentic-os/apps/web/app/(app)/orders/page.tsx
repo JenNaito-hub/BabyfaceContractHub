@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { danhSachDon, NHAN_KENH, NHAN_TRANG_THAI, TRANG_THAI_DON } from "@aescentic/sales";
 import { batBuocQuyen } from "@/lib/session";
-import { Kenh, ThanhToan, TrangThai, Trong, ngayGio, tienVND } from "@/components/Bits";
+import { tienVND } from "@/components/Bits";
+import BangDonClient from "@/components/BangDonClient";
 
 export const dynamic = "force-dynamic";
 
@@ -55,46 +56,21 @@ export default async function TrangDonHang({
         </form>
       </div>
 
-      <div className="mt-5 overflow-x-auto border border-line">
-        {ds.length === 0 ? (
-          <Trong>Không có đơn nào khớp bộ lọc</Trong>
-        ) : (
-          <table className="w-full min-w-[860px] bg-surface">
-            <thead>
-              <tr>
-                <th className="th">Mã đơn</th>
-                <th className="th">Ngày</th>
-                <th className="th">Kênh</th>
-                <th className="th">Khách</th>
-                <th className="th">Nơi bán</th>
-                <th className="th text-right">Tổng tiền</th>
-                <th className="th">Thanh toán</th>
-                <th className="th">Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ds.map((o) => (
-                <tr key={o.id} className="hover:bg-ink/[0.02]">
-                  <td className="td">
-                    <Link href={`/orders/${o.id}`} className="font-mono text-xs font-semibold underline">
-                      {o.code}
-                    </Link>
-                  </td>
-                  <td className="td whitespace-nowrap text-muted">{ngayGio(o.placedAt)}</td>
-                  <td className="td"><Kenh v={o.channel} /></td>
-                  <td className="td">
-                    <div className="max-w-[170px] truncate">{o.customerName ?? "—"}</div>
-                    <div className="font-mono text-[11px] text-muted">{o.customerPhone ?? ""}</div>
-                  </td>
-                  <td className="td text-muted">{o.storeName ?? "—"}</td>
-                  <td className="td text-right font-semibold tabular-nums">{tienVND(o.total)}</td>
-                  <td className="td"><ThanhToan v={o.paymentStatus} /></td>
-                  <td className="td"><TrangThai v={o.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <div className="mt-5">
+        <BangDonClient
+          ds={ds.map((o) => ({
+            id: o.id,
+            code: o.code,
+            channel: o.channel,
+            storeName: o.storeName,
+            customerName: o.customerName,
+            customerPhone: o.customerPhone,
+            status: o.status,
+            paymentStatus: o.paymentStatus,
+            total: Number(o.total),
+            placedAt: o.placedAt.toISOString(),
+          }))}
+        />
       </div>
     </div>
   );

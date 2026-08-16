@@ -41,6 +41,12 @@ export default async function ChiTietDon({ params }: { params: Promise<{ id: str
         <div className="flex flex-wrap items-center gap-2">
           <TrangThai v={don.status} />
           <ThanhToan v={don.paymentStatus} />
+          <a href={`/in?ids=${don.id}&kieu=phieu`} target="_blank" className="btn-ghost text-xs">
+            In phiếu giao
+          </a>
+          <a href={`/in?ids=${don.id}&kieu=hoadon`} target="_blank" className="btn-ghost text-xs">
+            In hoá đơn
+          </a>
           <form action={doiTT} className="flex gap-2">
             <select name="status" defaultValue={don.status} className="input w-auto">
               {TRANG_THAI_DON.map((t) => (

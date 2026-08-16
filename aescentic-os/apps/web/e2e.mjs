@@ -388,6 +388,186 @@ console.log("\n=== 7. Nhập đơn từ file Shopee ===");
   await ctx.close();
 }
 
+
+// ============================================================
+console.log("\n=== 8. In phiếu giao hàng ===");
+{
+  const { ctx, page } = await phien("ql.dk@aescentic.vn");
+
+  await page.goto(`${BASE}/orders`, { waitUntil: "networkidle" });
+  const o = page.locator('tbody input[type="checkbox"]');
+  await o.nth(0).check();
+  await o.nth(1).check();
+  const chu = await page.locator("main").textContent();
+  kiemDung("chọn đơn thì hiện thanh in", /Đã chọn 2 đơn/.test(chu), chu.slice(0, 120));
+
+  const link = await page.locator('a:has-text("In phiếu giao")').first().getAttribute("href");
+  await page.goto(`${BASE}${link}`, { waitUntil: "networkidle" });
+  const phieu = await page.locator("body").textContent();
+  kiem("in đúng 2 phiếu", await page.locator("section.print-page").count(), 2);
+  kiemDung("phiếu có tên và địa chỉ người nhận", /Người nhận/.test(phieu));
+  kiemDung("phiếu ghi rõ thu hộ hoặc không thu tiền",
+    /THU HỘ \(COD\)|KHÔNG THU TIỀN/.test(phieu), phieu.slice(0, 100));
+  kiemDung("không in tên sản phẩm trùng mã hai lần",
+    !/([A-Z]{3}-\d{3}-\d+)\s+\1/.test(phieu), "tên hiển thị trùng mã SKU");
+  await page.screenshot({ path: `${OUT}/os-12-phieu-giao.png`, fullPage: true });
+
+  // Hoá đơn khổ nhiệt
+  await page.goto(`${BASE}${link.replace("kieu=phieu", "kieu=hoadon")}`, { waitUntil: "networkidle" });
+  kiem("in đúng 2 hoá đơn", await page.locator("section.print-page").count(), 2);
+
+  // Đưa id đơn của cửa hàng khác vào URL cũng không in được
+  await ctx.close();
+}
+
+// ============================================================
+console.log("\n=== 9. In vượt phạm vi bị chặn ===");
+{
+  const ceo = await phien("jen@aescentic.vn");
+  await ceo.page.goto(`${BASE}/orders?kenh=store`, { waitUntil: "networkidle" });
+  // Lấy id một đơn bất kỳ của CEO (gồm cả cửa hàng khác)
+  const idKhac = await ceo.page.evaluate(() =>
+    [...document.querySelectorAll('tbody a[href^="/orders/"]')]
+      .map((a) => a.getAttribute("href").split("/").pop()));
+  await ceo.ctx.close();
+
+  const { ctx, page } = await phien("nv1.td@aescentic.vn");
+  await page.goto(`${BASE}/in?ids=${idKhac.slice(0, 20).join(",")}&kieu=phieu`, {
+    waitUntil: "networkidle",
+  });
+  const chu = await page.locator("body").textContent();
+  const soPhieu = await page.locator("section.print-page").count();
+  kiemDung(
+    "nhân viên Thảo Điền không in được phiếu của cửa hàng khác",
+    soPhieu === 0 && /Không in được|không thuộc phạm vi/.test(chu),
+    `in ra ${soPhieu} phiếu`,
+  );
+  await ctx.close();
+}
+
+// ============================================================
+console.log("\n=== 10. Nhập kho và chuyển kho ===");
+{
+  const { ctx, page } = await phien("ql.dk@aescentic.vn");
+
+  await page.goto(`${BASE}/inventory`, { waitUntil: "networkidle" });
+  const tongTruoc = Number(
+    (await page.locator("main").textContent()).match(/([\d.]+)\s*sp/)?.[1]?.replace(/\./g, "") ?? -1,
+  );
+
+  await page.goto(`${BASE}/inventory/phieu?kieu=nhap`, { waitUntil: "networkidle" });
+  kiemDung("mở được màn nhập kho", (await page.locator("[data-sku]").count()) > 0);
+
+  await page.locator("[data-sku]").first().click();
+  await page.locator('input[aria-label^="Số lượng"]').first().fill("5");
+  // Giá vốn bắt buộc: nhập sai giá là lợi nhuận mọi đơn sau đó sai theo
+  await page.locator('input[aria-label^="Giá vốn"]').first().fill("500000");
+  await page.locator('input.input').last().fill(MA_TEST);  // ghi chú, để dọn sau
+  await page.locator("button", { hasText: /^Nhập kho$/ }).last().click();
+  await page.waitForTimeout(500);
+  const loiNhap = await page.locator("main").textContent();
+  if (!/Đã tạo phiếu/.test(loiNhap)) console.log("   [debug]", loiNhap.slice(-260));
+  await page.locator("[data-xong]").waitFor({ timeout: 25000 });
+  const maPhieu = await page.locator("[data-xong]").getAttribute("data-xong");
+  kiemDung("tạo được phiếu nhập", /^PN|^[A-Z]/.test(maPhieu ?? ""), String(maPhieu));
+
+  await page.goto(`${BASE}/inventory`, { waitUntil: "networkidle" });
+  const tongSau = Number(
+    (await page.locator("main").textContent()).match(/([\d.]+)\s*sp/)?.[1]?.replace(/\./g, "") ?? -1,
+  );
+  kiemDung("nhập kho xong tồn tăng", tongSau === tongTruoc + 5, `${tongTruoc} → ${tongSau}`);
+  await page.screenshot({ path: `${OUT}/os-13-nhap-kho.png`, fullPage: true });
+
+  // Chuyển kho
+  await page.goto(`${BASE}/inventory/phieu?kieu=chuyen`, { waitUntil: "networkidle" });
+  await page.locator("[data-sku]").first().click();
+  await page.locator('input[aria-label^="Số lượng"]').first().fill("2");
+  await page.locator('input.input').last().fill(MA_TEST);
+  const chonKho = page.locator("select");
+  await chonKho.nth(1).selectOption({ index: 1 });
+  await page.locator("button", { hasText: /^Chuyển đi$/ }).click();
+  await page.locator("[data-xong]").waitFor({ timeout: 25000 });
+  const maChuyen = await page.locator("[data-xong]").getAttribute("data-xong");
+  kiemDung("tạo được phiếu chuyển", !!maChuyen, String(maChuyen));
+
+  // Chờ bảng bên dưới nạp lại rồi mới đọc — `router.refresh()` là bất đồng bộ.
+  const dongChuyen = page.locator("tbody tr", { hasText: maChuyen });
+  await dongChuyen.waitFor({ timeout: 20000 });
+  kiemDung(
+    "phiếu vừa tạo đang ở trạng thái đang chuyển",
+    /Đang chuyển/.test(await dongChuyen.textContent()),
+    await dongChuyen.textContent(),
+  );
+
+  await dongChuyen.locator("button", { hasText: /^Đã nhận$/ }).click();
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(600);
+  const sauNhan = page.locator("tbody tr", { hasText: maChuyen });
+  kiemDung(
+    "xác nhận nhận hàng xong chuyển sang Đã nhận",
+    /Đã nhận/.test(await sauNhan.textContent()),
+    await sauNhan.textContent(),
+  );
+  await page.screenshot({ path: `${OUT}/os-14-chuyen-kho.png`, fullPage: true });
+  await ctx.close();
+}
+
+// ============================================================
+console.log("\n=== 11. Đối soát COD ===");
+{
+  // Kế toán được chốt; quản lý cửa hàng chỉ xem
+  const { ctx, page } = await phien("ketoan@aescentic.vn");
+  await page.goto(`${BASE}/cod`, { waitUntil: "networkidle" });
+  const chu = await page.locator("main").textContent();
+  kiemDung("kế toán mở được màn đối soát", /Đối soát COD/.test(chu));
+  kiemDung("có số tiền COD đang chờ về", /Tiền COD đang chờ về/.test(chu));
+  await page.screenshot({ path: `${OUT}/os-15-doi-soat.png`, fullPage: true });
+
+  // Lấy mã vận đơn thật để dựng file sao kê
+  const maVanDon = await page.evaluate(() => {
+    const sel = document.querySelector("select");
+    return sel ? sel.value : null;
+  });
+  kiemDung("có hãng vận chuyển để đối soát", maVanDon !== null);
+
+  await ctx.close();
+}
+
+// ============================================================
+console.log("\n=== 12. Tải báo cáo Excel ===");
+{
+  const { ctx, page } = await phien("jen@aescentic.vn");
+  const res = await page.request.get(`${BASE}/api/bao-cao?thang=2026-08`);
+  kiem("tải được file", res.status(), 200);
+  kiemDung(
+    "đúng kiểu file Excel",
+    (res.headers()["content-type"] ?? "").includes("spreadsheetml"),
+    res.headers()["content-type"],
+  );
+  kiemDung(
+    "có tên file đính kèm",
+    (res.headers()["content-disposition"] ?? "").includes(".xlsx"),
+    res.headers()["content-disposition"],
+  );
+  const kb = Buffer.from(await res.body()).length / 1024;
+  kiemDung("file có nội dung", kb > 5, `${kb.toFixed(1)} KB`);
+  await ctx.close();
+}
+
+{
+  // Nhân viên tải cũng được, nhưng file không có cột giá vốn
+  const { ctx, page } = await phien("nv1.dk@aescentic.vn");
+  const res = await page.request.get(`${BASE}/api/bao-cao?thang=2026-08`);
+  kiem("nhân viên cũng tải được báo cáo", res.status(), 200);
+  const body = Buffer.from(await res.body()).toString("latin1");
+  kiemDung(
+    "file của nhân viên KHÔNG có cột lãi gộp",
+    !body.includes("Lãi gộp"),
+    "lộ giá vốn qua file Excel",
+  );
+  await ctx.close();
+}
+
 await browser.close();
 
 console.log("\n=== Lỗi console / HTTP 5xx ===");

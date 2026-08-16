@@ -56,7 +56,7 @@ export async function seedBanHang(db: Db): Promise<void> {
   if ((daCo?.n ?? 0) > 0) return; // đã seed rồi
 
   const dsSku = await db
-    .select({ id: skus.id, code: skus.code, retailPrice: skus.retailPrice })
+    .select({ id: skus.id, code: skus.code, name: skus.name, retailPrice: skus.retailPrice })
     .from(skus)
     .orderBy(skus.code);
   const dsDiaDiem = await db
@@ -164,7 +164,9 @@ export async function seedBanHang(db: Db): Promise<void> {
         orderId: don.id,
         skuId: s.id,
         skuCode: s.code,
-        displayName: s.code,
+        // Tên người đọc được, không phải mã. Phiếu giao hàng in ra cho khách
+        // và shipper xem — in "AES-007-50" thì không ai biết là hàng gì.
+        displayName: s.name ?? s.code,
         quantity: 1 + Math.floor(rng() * 2),
         unitPrice: s.retailPrice,
       });

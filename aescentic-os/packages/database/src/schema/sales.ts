@@ -91,6 +91,8 @@ export const orders = os.table(
     carrier: text("carrier"),
     trackingCode: text("tracking_code"),
     externalRef: text("external_ref"),
+    codReconciledAt: timestamp("cod_reconciled_at", { withTimezone: true }),
+    codAmount: bigint("cod_amount", { mode: "number" }),
     placedAt: timestamp("placed_at", { withTimezone: true }).notNull().defaultNow(),
     note: text("note"),
     stockApplied: boolean("stock_applied").notNull().default(false),
@@ -169,3 +171,33 @@ export const transferLines = os.table("transfer_lines", {
   skuId: uuid("sku_id").notNull(),
   quantity: integer("quantity").notNull().default(1),
 });
+
+/** Mỗi lần đối soát COD là một đợt — giữ lại để tra ngược khi tiền lệch. */
+export const codBatches = os.table("cod_batches", {
+  id: id(),
+  carrier: text("carrier").notNull(),
+  fileName: text("file_name"),
+  totalReported: bigint("total_reported", { mode: "number" }).notNull().default(0),
+  totalMatched: bigint("total_matched", { mode: "number" }).notNull().default(0),
+  matchedCount: integer("matched_count").notNull().default(0),
+  diffCount: integer("diff_count").notNull().default(0),
+  missingCount: integer("missing_count").notNull().default(0),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  createdAt: createdAt(),
+});
+
+export const codBatchLines = os.table(
+  "cod_batch_lines",
+  {
+    id: id(),
+    batchId: uuid("batch_id").notNull(),
+    trackingCode: text("tracking_code").notNull(),
+    amountReported: bigint("amount_reported", { mode: "number" }).notNull().default(0),
+    amountExpected: bigint("amount_expected", { mode: "number" }),
+    orderId: uuid("order_id"),
+    status: text("status").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => ({ batchIdx: index("cod_batch_lines_batch_idx").on(t.batchId) }),
+);

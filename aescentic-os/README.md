@@ -16,14 +16,14 @@ export DATABASE_URL="postgres://postgres@127.0.0.1:5434/aescentic_os"
 npm run db:migrate    # chạy 2 lần: lần 2 phải báo "không có migration mới"
 npm run db:seed       # chạy 2 lần: không được nhân đôi dữ liệu
 npx tsx packages/database/src/seed-sales.ts   # 160 đơn mẫu 45 ngày gần đây
-npm test              # 83/83
+npm test              # 104/104
 npx tsc --noEmit
 
 # Web
 export AUTH_SECRET="chuoi-dai-hon-32-ky-tu"
 export ALLOW_DEV_LOGIN=true
 npm --workspace @aescentic/web run dev        # http://localhost:3100
-npm run e2e                                   # 73/73, dọn sạch dữ liệu test sau khi chạy
+npm run e2e                                   # 99/99, dọn sạch dữ liệu test sau khi chạy
 ```
 
 Không có `DATABASE_URL` thì các test tích hợp bị bỏ qua kèm cảnh báo — chúng chạy
@@ -42,11 +42,11 @@ packages/
   config/        cấu hình có effective_from/to
   events/        domain event theo mẫu outbox
   integrations/  POSProvider · NhanhProvider (khung) · MockPosProvider
-  marketplace/   đọc file đơn Shopee/TikTok · tách địa chỉ (hàm thuần)
+  marketplace/   đọc file sàn · tách địa chỉ · đối soát COD · xuất Excel (hàm thuần)
   shared/        tiện ích thuần
 modules/
-  sales/         đơn hàng, POS, nhập đơn từ sàn, số liệu doanh thu
-  inventory/     tồn kho, sổ kho, kiểm kho
+  sales/         đơn hàng, POS, nhập đơn từ sàn, đối soát COD, in phiếu, báo cáo
+  inventory/     tồn kho, sổ kho, kiểm kho, nhập kho, chuyển kho
 apps/
   web/           giao diện Next.js
   worker/        (chưa có) đọc outbox

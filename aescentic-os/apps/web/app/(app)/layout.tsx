@@ -25,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/products", label: "Sản phẩm", quyen: "product.read" },
     { href: "/inventory", label: "Kho", quyen: "inventory.read" },
     { href: "/customers", label: "Khách hàng", quyen: "customer.read" },
+    { href: "/cod", label: "Đối soát COD", quyen: "cod.read" },
     { href: "/stores", label: "Cửa hàng", quyen: "store.read" },
     { href: "/admin/users", label: "Người dùng", quyen: "user.manage" },
     { href: "/admin/roles", label: "Phân quyền", quyen: "role.manage" },

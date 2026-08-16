@@ -19,3 +19,23 @@ body {
   .td { @apply px-4 py-2.5 text-sm border-t border-line/60; }
   .pill { @apply inline-block px-2 py-0.5 font-mono text-[10.5px] font-bold uppercase tracking-wider; }
 }
+
+/* ============================================================
+   In ấn: phiếu giao hàng A5 và hoá đơn khổ 80mm
+   Màn hình xem sao thì in ra vậy — không có bản xem trước riêng để lệch nhau.
+   ============================================================ */
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+  .print-page {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: page;
+    page-break-after: always;
+    margin: 0;
+    border: 0;
+  }
+  .print-page:last-child { break-after: auto; page-break-after: auto; }
+}
+
+@page { margin: 8mm; }

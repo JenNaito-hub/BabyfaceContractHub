@@ -10,6 +10,9 @@ import assert from "node:assert/strict";
 import { doQuan, doTinh, tachDiaChi } from "./address.ts";
 import { chuanHoaSdt } from "./phone.ts";
 import { dungDonHang, mapTrangThai, parseNgay, parseSo, tuDongMap } from "./importers.ts";
+import { doiSoat, tuDongMapCod } from "./cod.ts";
+import { taoExcel } from "./excel.ts";
+import * as XLSX from "xlsx";
 
 describe("tách địa chỉ dán từ inbox", () => {
   test("tách được tên, số điện thoại và tỉnh", () => {
@@ -195,5 +198,159 @@ describe("gom dòng thành đơn", () => {
   test("thiếu mã đơn thì báo lỗi", () => {
     const don = dungDonHang([{ don: "", sku: "AES-001-50", sl: "1", gia: "1" }], mapping, skuIndex);
     assert.match(don[0]!.loi.join(" "), /Thiếu mã đơn/);
+  });
+});
+
+describe("đối soát COD", () => {
+  const dons = [
+    { id: "o1", code: "AE01", total: 500_000, trackingCode: "S1.A1", customerName: "Mai", daDoiSoat: false },
+    { id: "o2", code: "AE02", total: 350_000, trackingCode: "S1.A2", customerName: "Lan", daDoiSoat: false },
+    { id: "o3", code: "AE03", total: 200_000, trackingCode: "S1.A3", customerName: "Hoa", daDoiSoat: true },
+  ];
+
+  const sheet = {
+    headers: ["Mã vận đơn", "Tiền thu hộ"],
+    rows: [
+      { "Mã vận đơn": "S1.A1", "Tiền thu hộ": "500.000" },
+      { "Mã vận đơn": "S1.A2", "Tiền thu hộ": "300.000" },
+      { "Mã vận đơn": "LA-LAC", "Tiền thu hộ": "99.000" },
+      { "Mã vận đơn": "S1.A3", "Tiền thu hộ": "200.000" },
+      { "Mã vận đơn": "S1.A1", "Tiền thu hộ": "500.000" },
+    ],
+  };
+
+  test("đoán được cột của hãng vận chuyển", () => {
+    assert.deepEqual(tuDongMapCod(sheet.headers), {
+      ma_van_don: "Mã vận đơn",
+      so_tien: "Tiền thu hộ",
+    });
+  });
+
+  test("dòng trùng mã vận đơn chỉ tính một lần", () => {
+    // File của hãng hay lặp dòng khi kiện đi qua nhiều bưu cục. Cộng hai lần
+    // là tiền tự nhiên nở ra mà không ai phát hiện.
+    const kq = doiSoat(sheet, tuDongMapCod(sheet.headers), dons);
+    assert.equal(kq.length, 4, "5 dòng nhưng 1 dòng trùng");
+    assert.equal(kq.filter((r) => r.maVanDon === "S1.A1").length, 1);
+  });
+
+  test("phân loại đúng: khớp, lệch, không thấy, đã đối soát", () => {
+    const kq = doiSoat(sheet, tuDongMapCod(sheet.headers), dons);
+    const theoMa = new Map(kq.map((r) => [r.maVanDon, r]));
+
+    assert.equal(theoMa.get("S1.A1")!.trangThai, "khop");
+    assert.equal(theoMa.get("S1.A1")!.lech, 0);
+
+    assert.equal(theoMa.get("S1.A2")!.trangThai, "lech");
+    assert.equal(theoMa.get("S1.A2")!.lech, -50_000, "hãng trả thiếu 50k");
+
+    assert.equal(theoMa.get("LA-LAC")!.trangThai, "khong_thay");
+    assert.equal(theoMa.get("S1.A3")!.trangThai, "da_doi_soat");
+  });
+
+  test("hãng trả dư cũng bị bắt, không chỉ trả thiếu", () => {
+    const kq = doiSoat(
+      { headers: ["Mã vận đơn", "COD"], rows: [{ "Mã vận đơn": "S1.A1", COD: "600.000" }] },
+      { ma_van_don: "Mã vận đơn", so_tien: "COD" },
+      dons,
+    );
+    assert.equal(kq[0]!.trangThai, "lech");
+    assert.equal(kq[0]!.lech, 100_000);
+  });
+
+  test("mã vận đơn hoa thường khác nhau vẫn khớp", () => {
+    const kq = doiSoat(
+      { headers: ["Mã vận đơn", "COD"], rows: [{ "Mã vận đơn": "  s1.a1  ", COD: "500000" }] },
+      { ma_van_don: "Mã vận đơn", so_tien: "COD" },
+      dons,
+    );
+    assert.equal(kq[0]!.trangThai, "khop");
+  });
+});
+
+describe("xuất Excel", () => {
+  const sheets = [
+    {
+      ten: "Tổng quan",
+      ghiChu: ["AESCENTIC — báo cáo tháng 08/2026", "Người xuất: Jen"],
+      cot: [
+        { key: "chiTieu", nhan: "Chỉ tiêu" },
+        { key: "giaTri", nhan: "Giá trị", kieu: "tien" as const },
+      ],
+      dong: [
+        { chiTieu: "Doanh thu", giaTri: 156_580_000 },
+        { chiTieu: "Lợi nhuận gộp", giaTri: 94_032_000 },
+      ],
+    },
+    {
+      ten: "Theo sản phẩm",
+      cot: [
+        { key: "sku", nhan: "SKU" },
+        { key: "soLuong", nhan: "Số lượng", kieu: "so" as const },
+      ],
+      dong: [{ sku: "AES-001-50", soLuong: 12 }],
+    },
+  ];
+
+  function docLai() {
+    // `cellNF` để đọc lại được định dạng số — mặc định SheetJS bỏ qua nó khi
+    // đọc, nên không có cờ này thì không kiểm được phần định dạng.
+    return XLSX.read(taoExcel(sheets), { type: "buffer", cellNF: true });
+  }
+
+  test("file mở lại được và đủ sheet", () => {
+    const wb = docLai();
+    assert.deepEqual(wb.SheetNames, ["Tổng quan", "Theo sản phẩm"]);
+  });
+
+  test("số tiền vào Excel là SỐ, không phải chữ", () => {
+    // Nếu ghi thành chuỗi thì người nhận không cộng được bằng SUM, mà cộng tay
+    // là sai. Đây là lỗi hay gặp nhất khi xuất báo cáo.
+    const ws = docLai().Sheets["Tổng quan"]!;
+    // 2 dòng ghi chú + 1 dòng tiêu đề → dữ liệu bắt đầu ở dòng 4
+    const o = ws["B4"];
+    assert.equal(o.t, "n", "ô tiền phải là kiểu số");
+    assert.equal(o.v, 156_580_000);
+    assert.equal(o.z, "#,##0", "phải có định dạng phân cách nghìn");
+  });
+
+  test("ghi chú nằm trên bảng, không đè mất tiêu đề cột", () => {
+    const ws = docLai().Sheets["Tổng quan"]!;
+    assert.match(String(ws["A1"].v), /báo cáo tháng/);
+    assert.equal(ws["A3"].v, "Chỉ tiêu");
+    assert.equal(ws["B3"].v, "Giá trị");
+  });
+
+  test("sheet không có ghi chú thì tiêu đề ở dòng đầu", () => {
+    const ws = docLai().Sheets["Theo sản phẩm"]!;
+    assert.equal(ws["A1"].v, "SKU");
+    assert.equal(ws["A2"].v, "AES-001-50");
+    assert.equal(ws["B2"].t, "n");
+  });
+
+  test("tên sheet quá dài hoặc có ký tự cấm vẫn tạo được file", () => {
+    // Excel cấm : \ / ? * [ ] và giới hạn 31 ký tự. Ném lỗi ở đây nghĩa là
+    // người dùng bấm tải và nhận về trang lỗi.
+    const wb = XLSX.read(
+      taoExcel([
+        {
+          ten: "Báo cáo 01/08/2026 — chi tiết đơn hàng theo từng cửa hàng",
+          cot: [{ key: "a", nhan: "A" }],
+          dong: [{ a: 1 }],
+        },
+      ]),
+      { type: "buffer" },
+    );
+    assert.equal(wb.SheetNames.length, 1);
+    assert.ok(wb.SheetNames[0]!.length <= 31);
+    assert.ok(!/[:\\/?*[\]]/.test(wb.SheetNames[0]!));
+  });
+
+  test("bảng rỗng vẫn ra file hợp lệ, không nổ", () => {
+    const wb = XLSX.read(
+      taoExcel([{ ten: "Rỗng", cot: [{ key: "a", nhan: "Cột A" }], dong: [] }]),
+      { type: "buffer" },
+    );
+    assert.equal(wb.Sheets["Rỗng"]!["A1"].v, "Cột A");
   });
 });

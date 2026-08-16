@@ -9,3 +9,5 @@ export * from "./types.ts";
 export * from "./phone.ts";
 export * from "./address.ts";
 export * from "./importers.ts";
+export * from "./cod.ts";
+export * from "./excel.ts";

@@ -1,5 +1,7 @@
-import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
+  codBatchLines,
+  codBatches,
   ghiAudit,
   inventoryLocations,
   orderLineCosts,
@@ -31,6 +33,7 @@ export type Ctx = { db: Db; principal: Principal };
 // Nhãn và hằng số nằm ở `labels.ts` để giao diện client import được mà không
 // kéo theo database. Re-export ở đây cho code phía server dùng một chỗ.
 export * from "./labels.ts";
+export * from "./bao-cao.ts";
 
 // ============================================================
 // Đọc
@@ -344,6 +347,226 @@ export async function nhapDonTuSan(
   });
 
   return kq;
+}
+
+// ============================================================
+// In phiếu giao hàng / hoá đơn
+// ============================================================
+
+export type DonDeIn = {
+  don: typeof orders.$inferSelect;
+  dong: (typeof orderLines.$inferSelect)[];
+  cuaHang: { name: string; address: string | null; phone: string | null } | null;
+};
+
+/**
+ * Lấy dữ liệu để in nhiều đơn một lượt.
+ *
+ * Áp bộ lọc phạm vi y như mọi truy vấn khác: đưa thẳng id vào URL cũng không
+ * in được đơn của cửa hàng khác.
+ */
+export async function donDeIn(ctx: Ctx, ids: string[]): Promise<DonDeIn[]> {
+  const d = requirePermission(ctx.principal, "order.read");
+  if (!ids.length || boLocRong(d.filter)) return [];
+
+  const dieuKien = [inArray(orders.id, ids)];
+  if (d.filter.kind === "stores") dieuKien.push(inArray(orders.storeId, d.filter.storeIds));
+  if (d.filter.kind === "self") dieuKien.push(eq(orders.soldBy, ctx.principal.userId));
+
+  const ds = await ctx.db
+    .select()
+    .from(orders)
+    .where(and(...dieuKien))
+    .orderBy(orders.placedAt)
+    .limit(200);
+  if (!ds.length) return [];
+
+  const [dong, dsCuaHang] = await Promise.all([
+    ctx.db
+      .select()
+      .from(orderLines)
+      .where(inArray(orderLines.orderId, ds.map((o) => o.id)))
+      .orderBy(orderLines.createdAt),
+    ctx.db
+      .select({
+        id: stores.id,
+        name: stores.name,
+        address: stores.address,
+        phone: stores.phone,
+      })
+      .from(stores)
+      .where(inArray(stores.id, [...new Set(ds.map((o) => o.storeId))])),
+  ]);
+
+  const theoDon = new Map<string, (typeof orderLines.$inferSelect)[]>();
+  for (const l of dong) {
+    const cur = theoDon.get(l.orderId) ?? [];
+    cur.push(l);
+    theoDon.set(l.orderId, cur);
+  }
+  const theoCuaHang = new Map(dsCuaHang.map((s) => [s.id, s]));
+
+  return ds.map((don) => ({
+    don,
+    dong: theoDon.get(don.id) ?? [],
+    cuaHang: theoCuaHang.get(don.storeId) ?? null,
+  }));
+}
+
+// ============================================================
+// Đối soát COD
+// ============================================================
+
+/** Đơn COD chưa nhận được tiền từ hãng vận chuyển. */
+export async function donCodChuaDoiSoat(ctx: Ctx, carrier?: string) {
+  const d = requirePermission(ctx.principal, "cod.read");
+  if (boLocRong(d.filter)) return [];
+
+  const dieuKien = [
+    eq(orders.paymentStatus, "cod"),
+    isNull(orders.codReconciledAt),
+    // Chưa giao xong thì hãng chưa thu được tiền, đối soát làm gì
+    inArray(orders.status, ["shipping", "completed"]),
+  ];
+  if (d.filter.kind === "stores") dieuKien.push(inArray(orders.storeId, d.filter.storeIds));
+  if (carrier) dieuKien.push(eq(orders.carrier, carrier));
+
+  return ctx.db
+    .select({
+      id: orders.id,
+      code: orders.code,
+      total: orders.total,
+      trackingCode: orders.trackingCode,
+      customerName: orders.customerName,
+      carrier: orders.carrier,
+      placedAt: orders.placedAt,
+      status: orders.status,
+    })
+    .from(orders)
+    .where(and(...dieuKien))
+    .orderBy(desc(orders.placedAt))
+    .limit(3000);
+}
+
+/** Các hãng vận chuyển đang có đơn COD treo, kèm số tiền chờ về. */
+export async function hangVanChuyenCoCod(ctx: Ctx) {
+  requirePermission(ctx.principal, "cod.read");
+  const ds = await donCodChuaDoiSoat(ctx);
+  const theoHang = new Map<string, { soDon: number; tongTien: number }>();
+  for (const o of ds) {
+    const k = o.carrier ?? "(không ghi hãng)";
+    const cur = theoHang.get(k) ?? { soDon: 0, tongTien: 0 };
+    cur.soDon++;
+    cur.tongTien += Number(o.total);
+    theoHang.set(k, cur);
+  }
+  return [...theoHang.entries()]
+    .map(([carrier, v]) => ({ carrier, ...v }))
+    .sort((a, b) => b.tongTien - a.tongTien);
+}
+
+export type DongChotDoiSoat = {
+  orderId: string;
+  trackingCode: string;
+  soTien: number;
+  soTienDuKien: number;
+  trangThai: string;
+};
+
+export type KetQuaDoiSoat = {
+  batchId: string;
+  daChot: number;
+  tongTien: number;
+};
+
+/**
+ * Chốt đối soát: ghi nhận đã nhận tiền cho những đơn người dùng chọn.
+ *
+ * CHỈ ghi nhận đúng những dòng được gửi lên — dòng lệch tiền hay không tìm thấy
+ * đơn vẫn được lưu vào đợt để tra ngược, nhưng không tự đánh dấu đã thu. Máy
+ * đoán sai mà tự chốt thì tiền sai mà không ai biết.
+ */
+export async function chotDoiSoatCod(
+  ctx: Ctx,
+  input: {
+    carrier: string;
+    fileName?: string;
+    /** Những dòng người dùng đồng ý ghi nhận đã nhận tiền. */
+    chot: DongChotDoiSoat[];
+    /** Toàn bộ dòng đọc được từ file, kể cả dòng không chốt — để lưu vết. */
+    tatCa: DongChotDoiSoat[];
+    note?: string;
+  },
+): Promise<KetQuaDoiSoat> {
+  requirePermission(ctx.principal, "cod.reconcile");
+
+  return trongGiaoDich(ctx.db, ctx.principal.userId, async (tx) => {
+    const tongKhai = input.tatCa.reduce((s, r) => s + r.soTien, 0);
+    const tongChot = input.chot.reduce((s, r) => s + r.soTien, 0);
+
+    const [batch] = await tx
+      .insert(codBatches)
+      .values({
+        carrier: input.carrier,
+        fileName: input.fileName ?? null,
+        totalReported: tongKhai,
+        totalMatched: tongChot,
+        matchedCount: input.tatCa.filter((r) => r.trangThai === "khop").length,
+        diffCount: input.tatCa.filter((r) => r.trangThai === "lech").length,
+        missingCount: input.tatCa.filter((r) => r.trangThai === "khong_thay").length,
+        note: input.note ?? null,
+        createdBy: ctx.principal.userId,
+      })
+      .returning({ id: codBatches.id });
+    if (!batch) throw new Error("Không tạo được đợt đối soát");
+
+    if (input.tatCa.length) {
+      await tx.insert(codBatchLines).values(
+        input.tatCa.map((r) => ({
+          batchId: batch.id,
+          trackingCode: r.trackingCode,
+          amountReported: r.soTien,
+          amountExpected: r.soTienDuKien || null,
+          orderId: r.orderId || null,
+          status: r.trangThai,
+        })),
+      );
+    }
+
+    for (const r of input.chot) {
+      if (!r.orderId) continue;
+      await tx
+        .update(orders)
+        .set({ codReconciledAt: new Date(), codAmount: r.soTien, paymentStatus: "paid" })
+        .where(and(eq(orders.id, r.orderId), isNull(orders.codReconciledAt)));
+    }
+
+    await ghiAudit(tx, {
+      actorUserId: ctx.principal.userId,
+      event: "cod.reconciled",
+      entityType: "cod_batch",
+      entityId: batch.id,
+      newValue: {
+        carrier: input.carrier,
+        daChot: input.chot.length,
+        tongTien: tongChot,
+        lech: input.tatCa.filter((r) => r.trangThai === "lech").length,
+      },
+      reason: `Đối soát COD với ${input.carrier}`,
+    });
+
+    return { batchId: batch.id, daChot: input.chot.length, tongTien: tongChot };
+  });
+}
+
+/** Lịch sử các đợt đối soát. */
+export async function lichSuDoiSoat(ctx: Ctx, gioiHan = 30) {
+  requirePermission(ctx.principal, "cod.read");
+  return ctx.db
+    .select()
+    .from(codBatches)
+    .orderBy(desc(codBatches.createdAt))
+    .limit(gioiHan);
 }
 
 /** Đổi trạng thái đơn. Trừ/hoàn kho do trigger lo. */

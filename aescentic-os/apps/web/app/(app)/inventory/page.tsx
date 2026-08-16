@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { bangTonKho, diaDiemXemDuoc, soKho, NHAN_BIEN_DONG, NHAN_LOAI_KHO } from "@aescentic/inventory";
 import { batBuocQuyen } from "@/lib/session";
 import { The, Trong, ngayGio, tienVND } from "@/components/Bits";
@@ -29,11 +30,17 @@ export default async function TrangKho() {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight">Kho</h1>
         <p className="mt-1 text-sm text-muted">
           {diaDiem.length} địa điểm · phạm vi <strong>{decision.allowed ? decision.scope : "—"}</strong>
         </p>
+      </div>
+        <div className="flex gap-2">
+          <Link href="/inventory/phieu?kieu=nhap" className="btn-dark">Nhập kho</Link>
+          <Link href="/inventory/phieu?kieu=chuyen" className="btn-ghost">Chuyển kho</Link>
+        </div>
       </div>
 
       <div className="grid gap-px bg-line sm:grid-cols-3">

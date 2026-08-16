@@ -64,11 +64,19 @@ export default async function TongQuan({
             Chào {ctx.fullName ?? ctx.email}
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <form className="flex items-center gap-2">
-            <input type="month" name="thang" defaultValue={thang} className="input w-auto" />
+        {/* `flex-wrap` + `min-w-0`: thêm một nút nữa là hàng này tràn ngang
+            trên điện thoại, và cả trang cuộn ngang theo. */}
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <form className="flex min-w-0 items-center gap-2">
+            <input
+              type="month"
+              name="thang"
+              defaultValue={thang}
+              className="input w-auto min-w-0 max-w-[160px]"
+            />
             <button className="btn-ghost">Xem</button>
           </form>
+          <a href={`/api/bao-cao?thang=${thang}`} className="btn-ghost">Tải Excel</a>
           {banDuoc && <Link href="/pos" className="btn-dark">Bán hàng</Link>}
         </div>
       </div>

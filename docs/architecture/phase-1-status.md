@@ -23,9 +23,15 @@ AESCENTIC OS thành **một app duy nhất** và làm cho nó bán được hàn
 | Thiếu quyền ra trang giải thích, không phải lỗi 500 | e2e: `/pos` với kế toán → `/khong-du-quyen` |
 | Tồn kho không bao giờ âm | migration `0005`: chặn trong hàm + ràng buộc CHECK |
 | Giao diện dùng được trên điện thoại | e2e: 3 màn chính không tràn ngang ở 390px |
+| Đối soát COD với hãng vận chuyển | test: chốt xong đơn chuyển sang đã thanh toán, chốt lại không ghi đè |
+| In phiếu giao hàng A5 + hoá đơn 80mm | e2e: chọn nhiều đơn in một lượt, in vượt phạm vi bị chặn |
+| Nhập kho có giao diện | test: cộng tồn và cập nhật giá vốn theo giá nhập mới |
+| Chuyển kho giữa các địa điểm | test: hàng rời kho gửi ngay, vào kho nhận khi xác nhận |
+| Xuất báo cáo Excel 5 sheet | e2e: file của nhân viên KHÔNG có cột lãi gộp |
 
-**83/83 test** (unit + tích hợp trên PostgreSQL thật) và **73/73 kiểm thử
-đầu-cuối trên trình duyệt**, chạy lại nhiều lần cho cùng kết quả.
+**104/104 test** (unit + tích hợp trên PostgreSQL thật) và **99/99 kiểm thử
+đầu-cuối trên trình duyệt**, chạy lại nhiều lần cho cùng kết quả — và tự dọn
+sạch dữ liệu test, tồn kho về đúng con số cũ sau mỗi lần chạy.
 
 ## Những lỗi thật đã tìm ra và sửa trong phase này
 
@@ -53,7 +59,17 @@ Ghi lại vì đây là loại lỗi im lặng làm sai tiền, khó phát hiệ
    một pool 10 kết nối, pool cũ không ai đóng. Sửa file mươi lần là PostgreSQL
    báo "too many clients" và cả app chết. Đã chuyển singleton sang `globalThis`.
 
-6. **Luật "ai quản kho hàng bán" nằm ở hai nơi.** Câu `UPDATE` trong `0003` chạy
+6. **Đơn đã đối soát COD thì không xoá được nữa.** Khoá ngoại
+   `cod_batch_lines.order_id` không khai `ON DELETE`, mặc định của PostgreSQL
+   là chặn — kể cả đơn nhập nhầm cần huỷ hẳn. Đổi sang `SET NULL` ở `0008`:
+   dòng đối soát vẫn giữ mã vận đơn và số tiền, chỉ thôi trỏ vào đơn.
+
+7. **Không sửa được tên hiển thị trên phiếu giao hàng.** Chốt chặn dòng hàng
+   cấm MỌI thao tác sửa khi đơn đã trừ kho, kể cả đổi một chữ để in cho đúng —
+   buộc phải hoàn kho rồi trừ lại chỉ để sửa cái tên. `0009` chốt lại theo đúng
+   cột nguy hiểm: SKU, số lượng, đơn giá.
+
+8. **Luật "ai quản kho hàng bán" nằm ở hai nơi.** Câu `UPDATE` trong `0003` chạy
    trước khi seed tạo địa điểm nên không chạm dòng nào. Đã đưa thành hàm
    `os.kho_ban_do_ai_quan()` để migration, seed và test hỏi cùng một chỗ.
 
@@ -75,10 +91,6 @@ Cần: `NHANH_APP_ID`, `NHANH_BUSINESS_ID`, `NHANH_ACCESS_TOKEN`. Xem
 
 | Hạng mục | Vì sao chưa | Ước lượng |
 | --- | --- | --- |
-| Đối soát COD | Còn ở app cũ (`src/lib/sales/cod.ts`), chưa chuyển sang OS | ~0,5 lượt |
-| In phiếu giao hàng | Còn ở app cũ, chưa chuyển sang OS | ~0,5 lượt |
-| Xuất Excel báo cáo | Chưa làm ở OS | ~0,3 lượt |
-| Nhập/chuyển kho có giao diện | Database và trigger đã có, chưa có màn hình | ~0,7 lượt |
 | `apps/worker` đọc outbox | Cần `REDIS_URL`. Hàng chờ đang dồn lại, chưa ai rút | ~0,5 lượt |
 | Nối Nhanh.vn thật | Chờ credential của Jen | ~1 lượt sau khi có token |
 
@@ -90,14 +102,13 @@ vào nó) nhưng phải xử lý trước khi chạy thật lâu dài.
 
 ## Quan hệ với app Aescentic Sales cũ
 
-App bán hàng ở thư mục gốc **vẫn còn nguyên và vẫn chạy**, nhưng phần lớn chức
-năng của nó đã có trong AESCENTIC OS. Hai thứ chưa chuyển sang là **đối soát
-COD** và **in phiếu giao hàng** — nên chưa xoá app cũ. Xoá bây giờ là mất tính
-năng đang dùng được.
+**Mọi chức năng của app cũ giờ đã có trong AESCENTIC OS**, kể cả đối soát COD và
+in phiếu giao hàng. Phần đọc file sàn, tách địa chỉ, đối soát COD và xuất Excel
+đã chuyển hẳn sang `aescentic-os/packages/marketplace/` kèm 34 test.
 
-Phần đọc file sàn và tách địa chỉ **đã được chuyển hẳn** sang
-`aescentic-os/packages/marketplace/`, kèm 23 test. Bản ở app cũ giữ nguyên để app
-cũ còn chạy, nhưng bản dùng cho tương lai là bản trong OS.
+App cũ ở thư mục gốc vẫn còn nguyên và vẫn chạy. Giữ lại là có chủ ý: đến khi
+Jen dùng thật OS trên môi trường production và thấy chạy ổn thì mới xoá. Xoá
+trước khi có đường lui là tự cắt đường lui.
 
 ## Cách kiểm chứng lại
 
@@ -108,14 +119,14 @@ npm install
 npm run db:migrate && npm run db:migrate   # lần 2 phải báo "không có migration mới"
 npm run db:seed && npm run db:seed         # lần 2 không được nhân đôi dữ liệu
 npx tsx packages/database/src/seed-sales.ts # dữ liệu bán hàng mẫu, chạy lại không nhân đôi
-npm test                                    # 83/83
+npm test                                    # 104/104
 npx tsc --noEmit                            # không lỗi
 
 # Vỏ web + kiểm thử trình duyệt
 export AUTH_SECRET="chuoi-dai-hon-32-ky-tu"
 export ALLOW_DEV_LOGIN=true
 npm --workspace @aescentic/web run dev      # http://localhost:3100
-npm run e2e                                 # 73/73 rồi dọn dữ liệu test
+npm run e2e                                 # 99/99 rồi dọn dữ liệu test
 ```
 
 Đăng nhập nhanh theo tài khoản mẫu **chỉ chạy ở chế độ dev**: `NODE_ENV=production`
