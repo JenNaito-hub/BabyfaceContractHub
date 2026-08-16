@@ -4,6 +4,7 @@ import {
   describeFalError,
   falHeaders,
   missingKeyResponse,
+  videoDuration,
 } from "@/lib/fal";
 
 export const runtime = "nodejs";
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
       : {
           prompt,
           aspect_ratio: aspect,
-          duration: String(Math.max(5, Math.round(body.duration ?? 5))),
+          duration: videoDuration(body.duration),
           ...(body.imageUrl ? { image_url: body.imageUrl } : {}),
         };
 

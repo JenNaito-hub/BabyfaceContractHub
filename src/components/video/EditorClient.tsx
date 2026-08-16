@@ -1007,6 +1007,8 @@ function AiGenerate({
   };
 
   const busy = stage !== null;
+  // Cùng quy tắc với server: model video chỉ nhận 5 hoặc 10 giây.
+  const aiSeconds = clip.duration > 7 ? 10 : 5;
 
   return (
     <div className="border-t border-dark/10 pt-3">
@@ -1045,11 +1047,11 @@ function AiGenerate({
           </div>
 
           <Field
-            label="Prompt"
+            label="Prompt (mô tả cảnh, nên viết tiếng Anh)"
             hint={
               kind === "video"
-                ? "Video tốn tiền gấp nhiều lần ảnh. Thử ảnh trước cho chắc prompt rồi hãy dựng video."
-                : "Ảnh rẻ — dựng ảnh rồi bật Zoom chậm ở trên là đã ra chuyển động."
+                ? `Model chỉ sinh được ${aiSeconds} giây mỗi lần. Muốn cảnh dài hơn thì sinh nhiều lần rồi ghép trên timeline. Video tốn tiền gấp nhiều lần ảnh.`
+                : "Ảnh rẻ hơn video rất nhiều — sinh ảnh rồi bật Zoom chậm ở trên là đã có chuyển động, dài bao lâu tuỳ ý."
             }
           >
             <textarea
@@ -1073,7 +1075,9 @@ function AiGenerate({
             </>
           ) : (
             <button type="button" className="btn-primary w-full" onClick={() => void run()}>
-              Sinh {kind === "image" ? "ảnh" : "video"} ({aspect})
+              {kind === "image"
+                ? `Sinh ảnh ${aspect}`
+                : `Sinh video ${aiSeconds}s · ${aspect}`}
             </button>
           )}
 

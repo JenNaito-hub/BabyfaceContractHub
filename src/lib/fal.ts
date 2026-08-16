@@ -39,6 +39,16 @@ export function isFalUrl(raw: string): boolean {
   );
 }
 
+/**
+ * Model sinh video của fal chỉ nhận vài mốc thời lượng cố định — phổ biến là
+ * 5 và 10 giây. Clip trên timeline có thể dài tới 30s; gửi thẳng con số đó là
+ * bị model từ chối (422). Quy về mốc gần nhất mà model chấp nhận.
+ */
+export function videoDuration(requested?: number): string {
+  const wanted = Number.isFinite(requested) ? Number(requested) : 5;
+  return wanted > 7 ? "10" : "5";
+}
+
 export function falHeaders(key: string): HeadersInit {
   return {
     Authorization: `Key ${key}`,
