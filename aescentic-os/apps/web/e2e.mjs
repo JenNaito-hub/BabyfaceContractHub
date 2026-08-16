@@ -46,9 +46,27 @@ async function phien(email) {
   return { ctx, page };
 }
 
-/** Tên các mục menu đang hiện. */
-async function menu(page) {
-  return (await page.locator("header nav a").allTextContents()).map((t) => t.trim());
+/** Tên các NHÓM trên thanh menu chính. */
+async function nhomMenu(page) {
+  return (await page.locator("header nav > a, header nav > div > button").allTextContents())
+    .map((t) => t.replace("▾", "").trim());
+}
+
+/** Mở một nhóm rồi đọc các mục bên trong. Nhóm một mục thì trả về chính nó. */
+async function mucTrongNhom(page, ten) {
+  const nut = page.locator("header nav > div > button", { hasText: ten });
+  if ((await nut.count()) > 0) {
+    await nut.first().click();
+    // Đọc riêng dòng tên: `allTextContents()` gộp cả tên lẫn dòng mô tả bên
+    // dưới thành một chuỗi dính liền, so sánh bằng `includes` sẽ luôn trượt.
+    const muc = await page
+      .locator("header nav > div > div a > div:first-child")
+      .allTextContents();
+    await nut.first().click();
+    return muc.map((t) => t.trim());
+  }
+  const link = page.locator("header nav > a", { hasText: ten });
+  return (await link.count()) > 0 ? [ten] : [];
 }
 
 /** Số tiền lớn nhất đọc được trên trang, dùng để so doanh thu. */
@@ -81,11 +99,19 @@ let khachCuaNhanVien = 0;
   const { ctx, page } = await phien("nv1.dk@aescentic.vn");
   kiem("vào thẳng trang chủ", new URL(page.url()).pathname, "/");
 
-  const m = await menu(page);
-  kiemDung("menu có Bán hàng", m.includes("Bán hàng"), m.join("/"));
-  kiemDung("menu có Kho", m.includes("Kho"), m.join("/"));
-  kiemDung("menu KHÔNG có Phân quyền", !m.includes("Phân quyền"), m.join("/"));
-  kiemDung("menu KHÔNG có Người dùng", !m.includes("Người dùng"), m.join("/"));
+  const m = await nhomMenu(page);
+  kiemDung("menu có nhóm Bán hàng", m.includes("Bán hàng"), m.join("/"));
+  kiemDung("menu có nhóm Vận hành", m.includes("Vận hành"), m.join("/"));
+  kiemDung("menu KHÔNG có nhóm Tài chính", !m.includes("Tài chính"), m.join("/"));
+
+  const vanHanh = await mucTrongNhom(page, "Vận hành");
+  kiemDung("nhân viên xem được tồn kho", vanHanh.includes("Tồn kho"), vanHanh.join("/"));
+  kiemDung("nhân viên KHÔNG được nhập kho", !vanHanh.includes("Nhập kho"), vanHanh.join("/"));
+  kiemDung("nhân viên KHÔNG được chuyển kho", !vanHanh.includes("Chuyển kho"), vanHanh.join("/"));
+
+  const them = await mucTrongNhom(page, "Thêm");
+  kiemDung("nhân viên KHÔNG thấy Phân quyền", !them.includes("Phân quyền"), them.join("/"));
+  kiemDung("nhân viên KHÔNG thấy Người dùng", !them.includes("Người dùng"), them.join("/"));
 
   // Cửa hàng: chỉ thấy nơi mình được gán
   await page.goto(`${BASE}/stores`, { waitUntil: "networkidle" });
@@ -198,9 +224,19 @@ console.log("\n=== 4. CEO thấy toàn bộ ===");
 {
   const { ctx, page } = await phien("jen@aescentic.vn");
 
-  const m = await menu(page);
-  for (const muc of ["Tổng quan", "Bán hàng", "Đơn hàng", "Sản phẩm", "Kho", "Khách hàng", "Cửa hàng", "Người dùng", "Phân quyền"]) {
-    kiemDung(`menu có ${muc}`, m.includes(muc), m.join("/"));
+  const m = await nhomMenu(page);
+  for (const nhom of ["Trang chủ", "Bán hàng", "Vận hành", "Khách hàng", "Tài chính", "Thêm"]) {
+    kiemDung(`menu có nhóm ${nhom}`, m.includes(nhom), m.join("/"));
+  }
+  kiemDung("thanh menu gọn, không quá 7 nhóm", m.length <= 7, `${m.length} nhóm: ${m.join("/")}`);
+
+  const banHang = await mucTrongNhom(page, "Bán hàng");
+  for (const muc of ["Bán tại quầy", "Đơn hàng", "Nhập đơn từ sàn", "Sản phẩm"]) {
+    kiemDung(`nhóm Bán hàng có ${muc}`, banHang.includes(muc), banHang.join("/"));
+  }
+  const themCeo = await mucTrongNhom(page, "Thêm");
+  for (const muc of ["Người dùng", "Phân quyền", "Bản đồ hệ thống"]) {
+    kiemDung(`Thêm có ${muc}`, themCeo.includes(muc), themCeo.join("/"));
   }
 
   const trangChu = await page.locator("main").textContent();
@@ -294,8 +330,10 @@ console.log("\n=== 5. Kế toán: thấy tiền, không đụng kho ===");
   const cotKeToan = (await page.locator("th").allTextContents()).join("|");
   kiemDung("bảng sản phẩm CÓ cột giá vốn cho kế toán", /giá vốn/i.test(cotKeToan), cotKeToan);
 
-  const m = await menu(page);
-  kiemDung("menu KHÔNG có Bán hàng", !m.includes("Bán hàng"), m.join("/"));
+  const m = await nhomMenu(page);
+  kiemDung("kế toán có nhóm Tài chính", m.includes("Tài chính"), m.join("/"));
+  const banHangKt = await mucTrongNhom(page, "Bán hàng");
+  kiemDung("kế toán KHÔNG bán được hàng", !banHangKt.includes("Bán tại quầy"), banHangKt.join("/"));
 
   await page.goto(`${BASE}/pos`, { waitUntil: "networkidle" });
   kiem("vào thẳng /pos vẫn bị chặn", new URL(page.url()).pathname, "/khong-du-quyen");
@@ -565,6 +603,19 @@ console.log("\n=== 12. Tải báo cáo Excel ===");
     !body.includes("Lãi gộp"),
     "lộ giá vốn qua file Excel",
   );
+  await ctx.close();
+}
+
+// ============================================================
+console.log("\n=== 13. Bản đồ hệ thống ===");
+{
+  const { ctx, page } = await phien("jen@aescentic.vn");
+  await page.goto(`${BASE}/he-thong`, { waitUntil: "networkidle" });
+  const chu = await page.locator("main").textContent();
+  kiem("liệt kê đủ 20 module", await page.locator("main section").count(), 20);
+  kiemDung("nói rõ module nào chưa dựng", /Chưa dựng/.test(chu));
+  kiemDung("nói rõ đang chờ credential gì", /NHANH_APP_ID/.test(chu));
+  await page.screenshot({ path: `${OUT}/os-16-ban-do.png`, fullPage: true });
   await ctx.close();
 }
 
