@@ -1,4 +1,17 @@
-# Babyface Talent Manager
+# Babyface
+
+Repo chứa **hai app độc lập**, deploy chung một link Vercel:
+
+| Khu vực | App | Auth | Dữ liệu |
+| --- | --- | --- | --- |
+| `/talent` | Talent & Casting Manager | Supabase Auth | Supabase (Postgres + RLS) |
+| `/video` | **Video Studio** | Không cần đăng nhập | IndexedDB trong trình duyệt |
+
+Hai khu vực **không dùng chung** auth hay dữ liệu. Xem `VIDEO_STUDIO.md` cho phần Video Studio.
+
+---
+
+# Babyface Talent Manager (`/talent`)
 
 Web app nhiều nhân viên quản lý **talent** và **casting** cho Babyface. Next.js (App Router) + Supabase Auth/DB, deploy trên Vercel.
 
