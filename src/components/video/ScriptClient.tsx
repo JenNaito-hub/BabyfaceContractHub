@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { projectStore, scriptStore, uid } from "@/lib/video/db";
+import { useAssets } from "@/lib/video/hooks";
+import { assetsToRefImages } from "@/lib/video/imageref";
 import { offlineScript, projectFromScript } from "@/lib/video/templates";
-import { PRESETS, type ScriptDoc, type ScriptRequest } from "@/lib/video/types";
+import { PRESETS, type Asset, type ScriptDoc, type ScriptRequest } from "@/lib/video/types";
+import { AssetThumb, UploadButton } from "./MediaPicker";
 import { Empty, Field, PageHead, Slider, useToast } from "./ui";
 
 const PLATFORMS = [
@@ -24,6 +27,21 @@ export default function ScriptClient() {
   const [active, setActive] = useState<ScriptDoc | null>(null);
   const [running, setRunning] = useState(false);
   const [presetId, setPresetId] = useState(PRESETS[0].id);
+  const [refIds, setRefIds] = useState<string[]>([]);
+  const { assets, busy: uploading, upload } = useAssets();
+
+  const images = useMemo(() => assets.filter((a) => a.kind === "image"), [assets]);
+  const assetMap = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
+  const MAX_REFS = 4;
+
+  const toggleRef = (asset: Asset) =>
+    setRefIds((cur) =>
+      cur.includes(asset.id)
+        ? cur.filter((id) => id !== asset.id)
+        : cur.length >= MAX_REFS
+          ? cur
+          : [...cur, asset.id],
+    );
 
   const [form, setForm] = useState<ScriptRequest>({
     brief: "",
@@ -50,10 +68,20 @@ export default function ScriptClient() {
     }
     setRunning(true);
     try {
+      // Thu nhỏ ảnh trước khi gửi — ảnh gốc dễ vượt giới hạn body của server.
+      const refImages = refIds.length ? await assetsToRefImages(refIds) : [];
+
       const res = await fetch("/api/video/script", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          images: refImages.map((r) => ({
+            name: r.name,
+            mediaType: r.mediaType,
+            data: r.data,
+          })),
+        }),
       });
 
       if (res.ok) {
@@ -67,6 +95,7 @@ export default function ScriptClient() {
           tone: form.tone,
           language: form.language,
           ai: true,
+          referenceAssetIds: refIds.length ? [...refIds] : undefined,
           createdAt: Date.now(),
         };
         await scriptStore.put(doc);
@@ -76,14 +105,14 @@ export default function ScriptClient() {
       } else {
         const err = (await res.json().catch(() => ({}))) as { message?: string };
         // Không có API key hoặc lỗi upstream → vẫn cho ra khung kịch bản offline.
-        const doc = offlineScript(form);
+        const doc = { ...offlineScript(form), referenceAssetIds: refIds.length ? [...refIds] : undefined };
         await scriptStore.put(doc);
         setActive(doc);
         await reload();
         toast.error(`${err.message ?? "Không gọi được Claude"} Đã tạo bản offline.`);
       }
     } catch {
-      const doc = offlineScript(form);
+      const doc = { ...offlineScript(form), referenceAssetIds: refIds.length ? [...refIds] : undefined };
       await scriptStore.put(doc);
       setActive(doc);
       await reload();
@@ -140,6 +169,65 @@ export default function ScriptClient() {
                 onChange={(e) => setForm({ ...form, brief: e.target.value })}
               />
             </Field>
+
+            {/* Ảnh tham chiếu: brief bằng chữ không tả nổi sản phẩm trông ra sao. */}
+            <div className="border-t border-dark/10 pt-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="label mb-0">
+                  Ảnh tham chiếu {refIds.length > 0 && `(${refIds.length}/${MAX_REFS})`}
+                </span>
+                <UploadButton
+                  accept="image/*"
+                  busy={uploading}
+                  label="Tải ảnh"
+                  onFiles={async (files) => {
+                    const added = await upload(files);
+                    setRefIds((cur) =>
+                      [...cur, ...added.filter((a) => a.kind === "image").map((a) => a.id)].slice(
+                        0,
+                        MAX_REFS,
+                      ),
+                    );
+                  }}
+                />
+              </div>
+              <p className="mb-2 text-xs text-dark/50">
+                Ảnh sản phẩm, talent hoặc bối cảnh. Claude nhìn ảnh rồi viết cho khớp màu sắc,
+                kiểu dáng thật — thay vì tả chung chung.
+              </p>
+
+              {images.length === 0 ? (
+                <p className="rounded-lg bg-dark/[0.04] px-3 py-2 text-xs text-dark/50">
+                  Chưa có ảnh nào trong Thư viện. Bấm “Tải ảnh” để thêm.
+                </p>
+              ) : (
+                <div className="grid max-h-40 grid-cols-4 gap-2 overflow-y-auto">
+                  {images.map((a) => {
+                    const order = refIds.indexOf(a.id) + 1;
+                    const full = refIds.length >= MAX_REFS && order === 0;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        title={full ? `Tối đa ${MAX_REFS} ảnh` : a.name}
+                        disabled={full}
+                        onClick={() => toggleRef(a)}
+                        className={`relative aspect-square overflow-hidden rounded-lg border transition disabled:opacity-40 ${
+                          order > 0 ? "border-dark ring-2 ring-lime" : "border-dark/15"
+                        }`}
+                      >
+                        <AssetThumb asset={a} />
+                        {order > 0 && (
+                          <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-lime text-[10px] font-extrabold text-dark">
+                            {order}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Nền tảng">
@@ -252,6 +340,9 @@ export default function ScriptClient() {
           ) : (
             <ScriptView
               doc={active}
+              refAssets={(active.referenceAssetIds ?? [])
+                .map((id) => assetMap.get(id))
+                .filter((a): a is Asset => !!a)}
               presetId={presetId}
               onPreset={setPresetId}
               onBuild={() => void buildProject(active)}
@@ -274,6 +365,7 @@ export default function ScriptClient() {
 
 function ScriptView({
   doc,
+  refAssets,
   presetId,
   onPreset,
   onBuild,
@@ -281,6 +373,7 @@ function ScriptView({
   onCopyAll,
 }: {
   doc: ScriptDoc;
+  refAssets: Asset[];
   presetId: string;
   onPreset: (id: string) => void;
   onBuild: () => void;
@@ -307,6 +400,25 @@ function ScriptView({
           </div>
         </div>
         <p className="text-sm">{doc.logline}</p>
+
+        {refAssets.length > 0 && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-dark/50">
+              Viết dựa trên
+            </span>
+            <div className="flex gap-1.5">
+              {refAssets.map((a) => (
+                <div
+                  key={a.id}
+                  title={a.name}
+                  className="h-10 w-10 overflow-hidden rounded-lg border border-dark/15"
+                >
+                  <AssetThumb asset={a} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-dark/10 pt-3">
           <label className="min-w-[200px] flex-1">

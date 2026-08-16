@@ -16,6 +16,7 @@ import {
   totalDuration,
 } from "@/lib/video/render";
 import { aspectOf, generateAsset, type GenerateKind } from "@/lib/video/generate";
+import { assetToRefImage, toDataUrl } from "@/lib/video/imageref";
 import { defaultCaption } from "@/lib/video/templates";
 import { PRESETS, type Asset, type Caption, type Clip, type Project } from "@/lib/video/types";
 import { AssetGrid, UploadButton } from "./MediaPicker";
@@ -801,11 +802,7 @@ function ClipInspector({
           </>
         )}
 
-        <AiGenerate
-          clip={clip}
-          aspect={aspect}
-          onGenerated={onGenerated}
-        />
+        <AiGenerate clip={clip} asset={asset} aspect={aspect} onGenerated={onGenerated} />
 
         <div className="border-t border-dark/10 pt-3">
           {!clip.caption ? (
@@ -953,15 +950,20 @@ function ClipInspector({
 
 function AiGenerate({
   clip,
+  asset,
   aspect,
   onGenerated,
 }: {
   clip: Clip;
+  asset?: Asset;
   aspect: string;
   onGenerated: (asset: Asset) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<GenerateKind>("image");
+  // Clip đang gắn ảnh → cho phép biến chính ảnh đó thành video.
+  const canUseSource = asset?.kind === "image";
+  const [useSource, setUseSource] = useState(true);
   // Prompt tiếng Anh từ shotlist là mặc định tốt nhất; không có thì lấy chữ trên clip.
   const [prompt, setPrompt] = useState(
     clip.aiPrompt ?? [clip.caption?.text, clip.caption?.sub].filter(Boolean).join(" — "),
@@ -988,16 +990,23 @@ function AiGenerate({
     setError(null);
     setStage("Bắt đầu…");
     try {
-      const asset = await generateAsset({
+      let sourceImageDataUrl: string | undefined;
+      if (kind === "video" && canUseSource && useSource && asset) {
+        setStage("Đang chuẩn bị ảnh gốc…");
+        sourceImageDataUrl = toDataUrl(await assetToRefImage(asset.id));
+      }
+
+      const created = await generateAsset({
         kind,
         prompt: prompt.trim(),
         aspect,
         durationSec: Math.max(5, Math.round(clip.duration)),
+        sourceImageDataUrl,
         label: clip.caption?.text,
         onStage: setStage,
         signal: controller.signal,
       });
-      await onGenerated(asset);
+      await onGenerated(created);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sinh media thất bại");
     } finally {
@@ -1061,6 +1070,25 @@ function AiGenerate({
               onChange={(e) => setPrompt(e.target.value)}
             />
           </Field>
+
+          {kind === "video" && canUseSource && (
+            <label className="flex items-start gap-2 rounded-lg bg-lime/20 px-3 py-2 text-xs">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={useSource}
+                disabled={busy}
+                onChange={(e) => setUseSource(e.target.checked)}
+              />
+              <span>
+                <span className="font-semibold">Dùng ảnh của clip làm gốc</span>
+                <span className="block text-dark/60">
+                  Video dựng từ chính ảnh này nên giữ đúng sản phẩm/người trong ảnh. Bỏ chọn thì
+                  model tự vẽ mới theo prompt.
+                </span>
+              </span>
+            </label>
+          )}
 
           {busy ? (
             <>

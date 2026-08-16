@@ -195,6 +195,8 @@ export type ScriptDoc = {
   cta: string;
   /** true nếu sinh bằng Claude, false nếu dùng template offline. */
   ai: boolean;
+  /** Ảnh sản phẩm/talent đã dùng làm tham chiếu khi viết kịch bản. */
+  referenceAssetIds?: string[];
   createdAt: number;
 };
 

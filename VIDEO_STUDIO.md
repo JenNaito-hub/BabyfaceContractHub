@@ -44,6 +44,10 @@ Dùng Claude (`claude-opus-5`) qua server route `/api/video/script`, ràng buộ
 JSON schema nên kết quả luôn đúng cấu trúc. **Chưa có `ANTHROPIC_API_KEY` thì app vẫn chạy** —
 tự chuyển sang bản sinh offline bằng template, cho ra khung shotlist dùng được ngay.
 
+**Ảnh tham chiếu** (tối đa 4): chọn ảnh sản phẩm, talent hoặc bối cảnh từ Thư viện. Claude nhìn
+ảnh rồi mới viết, nên shotlist bám đúng màu sắc và kiểu dáng thật thay vì tả chung chung — và
+prompt AI cũng tả lại đặc điểm nhìn thấy được. Ảnh được thu nhỏ về 1024px trước khi gửi.
+
 Nút **“Dựng khung trong Editor”** biến shotlist thành project: mỗi cảnh là một clip trống mang
 sẵn chữ mô tả, đúng thời lượng, **và kèm luôn prompt tiếng Anh của cảnh đó**.
 
@@ -52,6 +56,13 @@ Trong Editor, chọn một clip → **“✨ Sinh media bằng AI”**. Prompt t
 khung hình lấy theo project. Sinh xong file tự vào Thư viện và tự gắn vào clip đang chọn.
 
 Cần `FAL_KEY`. Thiếu key thì nút báo rõ là chưa cấu hình, các phần khác vẫn chạy bình thường.
+
+Video sinh ra **5 hoặc 10 giây mỗi lần** (giới hạn của model, không phải của app) — nút ghi rõ
+sẽ ra mấy giây. Cảnh dài hơn thì sinh nhiều lần rồi ghép trên timeline.
+
+**Clip đang gắn ảnh** thì có thêm lựa chọn *“Dùng ảnh của clip làm gốc”* — video dựng từ chính
+ảnh đó (image-to-video) nên giữ đúng sản phẩm/người trong ảnh, thay vì để model vẽ ra một thứ
+na ná.
 
 **Ảnh rẻ hơn video rất nhiều.** Cách tiết kiệm: sinh ảnh cho từng cảnh rồi bật *Zoom chậm* +
 chuyển cảnh — vẫn ra video có chuyển động với chi phí gần như không đáng kể. Chỉ sinh video

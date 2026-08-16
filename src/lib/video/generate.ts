@@ -15,6 +15,11 @@ export type GenerateOptions = {
   /** Tỉ lệ khung hình của project, ví dụ "9:16". */
   aspect: string;
   durationSec?: number;
+  /**
+   * data URL của ảnh gốc — có thì dùng model image-to-video, giữ đúng sản phẩm
+   * trong ảnh thay vì để model tự bịa ra một cái tương tự.
+   */
+  sourceImageDataUrl?: string;
   /** Đặt tên file cho dễ tìm lại trong thư viện. */
   label?: string;
   onStage?: (stage: string) => void;
@@ -64,7 +69,15 @@ export async function generateAsset(opts: GenerateOptions): Promise<Asset> {
   const submitRes = await fetch("/api/video/generate", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ kind, prompt, aspect, duration: durationSec }),
+    body: JSON.stringify({
+      kind,
+      prompt,
+      aspect,
+      duration: durationSec,
+      ...(kind === "video" && opts.sourceImageDataUrl
+        ? { imageUrl: opts.sourceImageDataUrl }
+        : {}),
+    }),
     signal,
   });
   if (!submitRes.ok) throw await readError(submitRes, "Không gửi được yêu cầu");

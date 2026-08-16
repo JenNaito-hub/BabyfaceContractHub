@@ -60,7 +60,16 @@ Nguyên tắc:
 - Tổng thời lượng các cảnh phải khớp thời lượng yêu cầu.
 - Hook chiếm 3 giây đầu và phải có lý do cụ thể khiến người xem dừng lại.
 - Voiceover viết như người nói, không như văn bản quảng cáo.
-- Bám sát brief. Nếu brief thiếu thông tin, chọn phương án hợp lý nhất thay vì hỏi lại.`;
+- Bám sát brief. Nếu brief thiếu thông tin, chọn phương án hợp lý nhất thay vì hỏi lại.
+
+Khi có ảnh tham chiếu kèm theo:
+- Nhìn kỹ ảnh rồi mới viết. Ảnh là sự thật về sản phẩm/talent/bối cảnh, brief chỉ là mô tả.
+- Mô tả đúng những gì thấy trong ảnh: màu sắc, kiểu dáng, bao bì, trang phục, không gian.
+  Đừng bịa chi tiết trái với ảnh.
+- Trường aiPrompt phải tả lại đặc điểm nhìn thấy được (màu, chất liệu, hình dáng) để công cụ
+  sinh video dựng ra đúng thứ đó, chứ không phải một sản phẩm chung chung.`;
+
+type RefImage = { name?: string; mediaType?: string; data?: string };
 
 type Body = {
   brief?: string;
@@ -69,7 +78,15 @@ type Body = {
   tone?: string;
   language?: string;
   shotCount?: number;
+  /** Ảnh sản phẩm / talent / bối cảnh để Claude nhìn rồi viết. */
+  images?: RefImage[];
 };
+
+/** Trần an toàn cho phần ảnh — body request có giới hạn dung lượng. */
+const MAX_IMAGES = 4;
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 export async function POST(request: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -105,6 +122,17 @@ export async function POST(request: Request) {
   const language = body.language ?? "Tiếng Việt";
   const shotCount = clamp(body.shotCount ?? 6, 3, 16);
 
+  const images = (body.images ?? [])
+    .filter(
+      (img): img is Required<RefImage> =>
+        typeof img?.data === "string" &&
+        img.data.length > 0 &&
+        ALLOWED_IMAGE_TYPES.has(img.mediaType ?? ""),
+    )
+    // base64 nở ~4/3 so với bytes gốc — quy đổi lại để so với trần.
+    .filter((img) => (img.data.length * 3) / 4 <= MAX_IMAGE_BYTES)
+    .slice(0, MAX_IMAGES);
+
   const prompt = [
     `Brief: ${brief}`,
     `Nền tảng: ${platform}`,
@@ -112,7 +140,25 @@ export async function POST(request: Request) {
     `Tông giọng: ${tone}`,
     `Ngôn ngữ kịch bản: ${language}`,
     `Số cảnh: đúng ${shotCount} cảnh`,
-  ].join("\n");
+    images.length
+      ? `\nCó ${images.length} ảnh tham chiếu kèm theo${
+          images.some((i) => i.name) ? ` (${images.map((i) => i.name).join(", ")})` : ""
+        }. Nhìn ảnh rồi viết cho khớp.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  // Ảnh đặt trước chữ — Claude đọc hình rồi mới tới yêu cầu.
+  const content: Anthropic.ContentBlockParam[] = [
+    ...images.map(
+      (img): Anthropic.ContentBlockParam => ({
+        type: "image",
+        source: { type: "base64", media_type: img.mediaType as "image/jpeg", data: img.data },
+      }),
+    ),
+    { type: "text", text: prompt },
+  ];
 
   const client = new Anthropic({ apiKey });
 
@@ -124,7 +170,7 @@ export async function POST(request: Request) {
       effort: "medium",
       format: { type: "json_schema", schema: SCRIPT_SCHEMA },
     },
-    messages: [{ role: "user", content: prompt }],
+    messages: [{ role: "user", content }],
   };
 
   try {
